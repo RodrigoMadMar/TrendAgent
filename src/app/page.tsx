@@ -33,20 +33,11 @@ async function apiNotion(payload: any): Promise<any> {
   return res.json();
 }
 
-async function apiCompetitors(): Promise<CompetitorPost[]> {
+async function apiCompetitors(): Promise<CompetitorAnalysis> {
   const res = await fetch("/api/competitors", { method: "POST" });
-  const data = await res.json();
-  if (data.error) throw new Error(data.error);
-  return data.posts || [];
-}
-
-async function apiCompetitorsAnalyze(posts: CompetitorPost[]): Promise<CompetitorAnalysis> {
-  const res = await fetch("/api/competitors/analyze", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ posts }),
-  });
-  const data = await res.json();
+  const text = await res.text();
+  let data: any;
+  try { data = JSON.parse(text); } catch { throw new Error("Error al escanear competidores. Reintenta en unos segundos."); }
   if (data.error) throw new Error(data.error);
   return data;
 }
@@ -433,17 +424,14 @@ export default function Dashboard() {
 
   const scanCompetitors = async () => {
     setCompPhase("fetching");
-    setCompMsg("Scrapeando publicaciones de competidores...");
+    setCompMsg("Escaneando competidores con IA...");
     setCompData(null);
     try {
-      const posts = await apiCompetitors();
-      if (!posts.length) { setCompPhase("error"); setCompMsg("No se encontraron publicaciones."); return; }
-      setCompPhase("analyzing");
-      setCompMsg(`Analizando ${posts.length} publicaciones con Claude...`);
-      const analysis = await apiCompetitorsAnalyze(posts);
+      const analysis = await apiCompetitors();
       setCompData(analysis);
       setCompPhase("done");
-      setCompMsg(`${posts.length} publicaciones analizadas`);
+      const postCount = (analysis.competitors || []).reduce((a: number, c: any) => a + (c.posts || []).length, 0);
+      setCompMsg(`${postCount} publicaciones detectadas`);
     } catch (e: any) {
       setCompPhase("error");
       setCompMsg(e.message || "Error desconocido");
@@ -536,14 +524,14 @@ export default function Dashboard() {
 
         {activeTab === "competencia" && (
           <>
-            <button onClick={scanCompetitors} disabled={compPhase === "fetching" || compPhase === "analyzing"} style={{
+            <button onClick={scanCompetitors} disabled={compPhase === "fetching"} style={{
               width: "100%", padding: 12, borderRadius: 10, border: "none",
-              cursor: compPhase === "fetching" || compPhase === "analyzing" ? "not-allowed" : "pointer",
-              background: compPhase === "fetching" || compPhase === "analyzing" ? "rgba(255,255,255,0.05)" : "linear-gradient(135deg, #550000, #991b1b)",
-              color: compPhase === "fetching" || compPhase === "analyzing" ? "#888" : "#fff",
+              cursor: compPhase === "fetching" ? "not-allowed" : "pointer",
+              background: compPhase === "fetching" ? "rgba(255,255,255,0.05)" : "linear-gradient(135deg, #550000, #991b1b)",
+              color: compPhase === "fetching" ? "#888" : "#fff",
               fontSize: 14, fontWeight: 700, marginBottom: 10,
             }}>
-              {compPhase === "idle" ? "🏁 Escanear competencia ahora" : compPhase === "fetching" ? "📡 Buscando publicaciones..." : compPhase === "analyzing" ? "🧠 Analizando con IA..." : compPhase === "error" ? "🔄 Reintentar" : "🏁 Nuevo escaneo de competencia"}
+              {compPhase === "idle" ? "🏁 Escanear competencia ahora" : compPhase === "fetching" ? "🧠 Escaneando con IA..." : compPhase === "error" ? "🔄 Reintentar" : "🏁 Nuevo escaneo de competencia"}
             </button>
             {compMsg && (
               <div style={{ fontSize: 11, color: compPhase === "error" ? "#f87171" : "#4d94ff", textAlign: "center", marginBottom: 8, padding: "6px 10px", background: "rgba(0,102,255,0.05)", borderRadius: 8 }}>
@@ -642,10 +630,10 @@ export default function Dashboard() {
               <div style={{ fontSize: 12, color: "#444", maxWidth: 300, margin: "0 auto" }}>Detecta campañas activas de {COMPETITORS.map((c) => c.name).join(", ")} y genera oportunidades reactivas para Blue Express.</div>
             </div>
           )}
-          {(compPhase === "fetching" || compPhase === "analyzing") && (
+          {compPhase === "fetching" && (
             <div style={{ textAlign: "center", padding: "60px 20px" }}>
-              <div style={{ fontSize: 48, marginBottom: 16, animation: "pulse 1.5s ease-in-out infinite" }}>{compPhase === "fetching" ? "🔍" : "🧠"}</div>
-              <div style={{ fontSize: 14, fontWeight: 700, color: "#4d94ff" }}>{compPhase === "fetching" ? "Scrapeando redes de competidores..." : "Analizando panorama competitivo..."}</div>
+              <div style={{ fontSize: 48, marginBottom: 16, animation: "pulse 1.5s ease-in-out infinite" }}>🧠</div>
+              <div style={{ fontSize: 14, fontWeight: 700, color: "#4d94ff" }}>Escaneando y analizando competidores...</div>
               <style>{`@keyframes pulse{0%,100%{opacity:1}50%{opacity:0.5}}`}</style>
             </div>
           )}
