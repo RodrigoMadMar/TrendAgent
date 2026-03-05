@@ -72,8 +72,7 @@ export function getTasksForChannel(channel: string): TaskTemplate[] {
   const key = Object.keys(CHANNEL_TASKS).find((k) =>
     channel.toLowerCase().includes(k.toLowerCase())
   ) || "Push";
-  const base = CHANNEL_TASKS[key] || CHANNEL_TASKS["Push"];
-  return [...base, { name: "Análisis KPIs", ownerKey: "felipe", tag: "KPIS", offsetDays: 7 }];
+  return CHANNEL_TASKS[key] || CHANNEL_TASKS["Push"];
 }
 
 export function offsetDate(dateStr: string, days: number): string {

@@ -95,7 +95,10 @@ function NotionModal({ campaign, trend, onClose }: { campaign: Campaign; trend: 
     <div onClick={onClose} style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.75)", zIndex: 1000, display: "flex", alignItems: "center", justifyContent: "center", padding: 16 }}>
       <div onClick={(e) => e.stopPropagation()} style={{ background: "#141414", border: "1px solid rgba(255,255,255,0.1)", borderRadius: 16, width: "100%", maxWidth: 480, maxHeight: "90vh", overflow: "auto", padding: 24 }}>
         <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 16 }}>
-          <h2 style={{ fontSize: 16, fontWeight: 800, margin: 0, color: "#fff" }}>Crear en Notion</h2>
+          <div>
+            <h2 style={{ fontSize: 16, fontWeight: 800, margin: "0 0 2px", color: "#fff" }}>Crear en Notion</h2>
+            <p style={{ fontSize: 10, color: "#4d94ff", margin: 0, fontWeight: 600 }}>Líder de Negocio: Rodrigo Madariaga</p>
+          </div>
           <button onClick={onClose} style={{ background: "none", border: "none", color: "#666", fontSize: 20, cursor: "pointer" }}>✕</button>
         </div>
 
@@ -299,7 +302,8 @@ export default function Dashboard() {
           </h1>
           {phase === "done" && <span style={{ fontSize: 8, color: "#34d399", background: "rgba(52,211,153,0.15)", padding: "2px 7px", borderRadius: 12, fontWeight: 700 }}>LIVE</span>}
         </div>
-        <p style={{ fontSize: 10, color: "#555", margin: "0 0 12px" }}>Scraping real · Scoring IA · Push a Notion · Blue Express × Copec</p>
+        <p style={{ fontSize: 10, color: "#555", margin: "0 2px 2px" }}>Scraping real · Scoring IA · Push a Notion · Blue Express × Copec</p>
+        <p style={{ fontSize: 10, color: "#4d94ff", margin: "0 0 12px", fontWeight: 600 }}>Líder de Negocio: Rodrigo Madariaga</p>
 
         <button onClick={scan} disabled={phase === "fetching" || phase === "scoring"} style={{
           width: "100%", padding: 12, borderRadius: 10, border: "none",
