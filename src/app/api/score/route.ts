@@ -16,7 +16,7 @@ export async function POST(req: NextRequest) {
 
     const response = await client.messages.create({
       model: "claude-sonnet-4-6",
-      max_tokens: 3000,
+      max_tokens: 8000,
       system: `Eres un analista senior de Growth Marketing para Blue Express (servicio de envíos y logística de Copec, Chile).
 
 Manual de marca Blue Express:
@@ -80,10 +80,14 @@ Responde ÚNICAMENTE con el JSON array.`,
     let scored: any[] = [];
     try {
       const clean = texts.replace(/```json?/g, "").replace(/```/g, "").trim();
-      const match = clean.match(/\[[\s\S]*\]/);
-      if (match) scored = JSON.parse(match[0]);
+      const start = clean.indexOf("[");
+      const end = clean.lastIndexOf("]");
+      if (start !== -1 && end !== -1 && end > start) {
+        scored = JSON.parse(clean.slice(start, end + 1));
+      }
     } catch (e) {
       console.error("Score parse error:", e);
+      console.error("Raw text preview:", texts.substring(0, 800));
     }
 
     // Add IDs, vote counts, mock volume
