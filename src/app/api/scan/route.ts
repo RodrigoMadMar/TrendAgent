@@ -8,22 +8,23 @@ export async function POST(req: NextRequest) {
   try {
     const client = getClient();
 
-    const response = await client.messages.create({
-      model: "claude-sonnet-4-6",
-      max_tokens: 2000,
-      tools: [
-        {
-          type: "web_search_20250305",
-          name: "web_search",
-        } as any,
-      ],
-      system: `Eres un scraper de tendencias chilenas. Tu trabajo es buscar las tendencias actuales más relevantes de X/Twitter en Chile y noticias de farándula/entretenimiento chileno.
+    const response = await client.messages.create(
+      {
+        model: "claude-sonnet-4-6",
+        max_tokens: 2000,
+        tools: [
+          {
+            type: "web_search_20250305",
+            name: "web_search",
+          } as any,
+        ],
+        system: `Eres un scraper de tendencias chilenas. Tu trabajo es buscar las tendencias actuales más relevantes de X/Twitter en Chile y noticias de farándula/entretenimiento chileno.
 
 Responde SOLO con un JSON array válido. Sin markdown, sin backticks, sin explicaciones. Solo el JSON.`,
-      messages: [
-        {
-          role: "user",
-          content: `Busca las tendencias actuales en Chile:
+        messages: [
+          {
+            role: "user",
+            content: `Busca las tendencias actuales en Chile:
 
 1. Busca "trending topics Chile hoy Twitter X" para los trending topics del momento
 2. Busca "farándula chilena noticias hoy" para titulares de entretenimiento
@@ -40,9 +41,11 @@ Para cada tendencia relevante que encuentres, devuelve:
 
 Devuelve entre 5 y 8 tendencias. Prioriza las que tengan potencial de engagement o comercial.
 Responde ÚNICAMENTE con el JSON array.`,
-        },
-      ],
-    });
+          },
+        ],
+      },
+      { headers: { "anthropic-beta": "web-search-2025-03-05" } }
+    );
 
     // Extract text blocks
     const texts = response.content
