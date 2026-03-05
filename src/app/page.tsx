@@ -53,6 +53,28 @@ const EffortTag = ({ effort }: { effort: string }) => {
   return <span style={{ fontSize: 9, fontWeight: 600, color: c.c, background: `${c.c}18`, padding: "2px 7px", borderRadius: 12, border: `1px solid ${c.c}33`, whiteSpace: "nowrap" }}>{c.l}</span>;
 };
 
+const CHANNEL_STYLES: Record<string, { color: string; icon: string }> = {
+  "Email":                { color: "#a78bfa", icon: "✉️" },
+  "Push":                 { color: "#38bdf8", icon: "🔔" },
+  "Push + Email":         { color: "#818cf8", icon: "🔔✉️" },
+  "Instagram Post":       { color: "#f472b6", icon: "📷" },
+  "Instagram Story":      { color: "#fb923c", icon: "📸" },
+  "Instagram + TikTok":   { color: "#e879f9", icon: "📲" },
+  "TikTok":               { color: "#2dd4bf", icon: "🎵" },
+  "Paid Social":          { color: "#facc15", icon: "💰" },
+  "SMS":                  { color: "#4ade80", icon: "💬" },
+  "Full funnel":          { color: "#f87171", icon: "🎯" },
+};
+
+const ChannelTag = ({ channel }: { channel: string }) => {
+  const s = CHANNEL_STYLES[channel] || { color: "#888", icon: "📡" };
+  return (
+    <span style={{ display: "inline-flex", alignItems: "center", gap: 3, fontSize: 9, fontWeight: 700, color: s.color, background: `${s.color}18`, padding: "2px 7px", borderRadius: 6, border: `1px solid ${s.color}33`, whiteSpace: "nowrap" }}>
+      {s.icon} {channel}
+    </span>
+  );
+};
+
 const Ring = ({ score }: { score: string }) => {
   const s = parseFloat(score) || 0;
   return (
@@ -171,7 +193,7 @@ function CampaignCard({ c, trend, voted, onVote, onCreate }: {
         <div style={{ flex: 1, minWidth: 0 }}>
           <div style={{ display: "flex", alignItems: "center", gap: 5, marginBottom: 5, flexWrap: "wrap" }}>
             <span style={{ fontWeight: 700, fontSize: 12, color: "#e5e5e5" }}>{c.title}</span>
-            <span style={{ fontSize: 8, color: "#0066ff", background: "rgba(0,102,255,0.1)", padding: "1px 6px", borderRadius: 6, fontWeight: 600 }}>{c.channel}</span>
+            <ChannelTag channel={c.channel} />
           </div>
           <p style={{ fontSize: 11, color: "#aaa", lineHeight: 1.5, margin: "0 0 6px", fontStyle: "italic" }}>&quot;{c.copy}&quot;</p>
           <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
