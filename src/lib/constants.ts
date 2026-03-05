@@ -81,6 +81,13 @@ export function offsetDate(dateStr: string, days: number): string {
   return d.toISOString().split("T")[0];
 }
 
+// Competitors
+export const COMPETITORS = [
+  { name: "Chilexpress", x: "@Chilexpress", ig: "@chilexpress", color: "#FF6B00" },
+  { name: "Starken", x: "@StarkenCL", ig: "@starkencl", color: "#E31837" },
+  { name: "Correos de Chile", x: "@Correos_Chile", ig: "@correos.chile", color: "#003DA5" },
+] as const;
+
 // Types
 export interface RawTrend {
   title: string;
@@ -115,4 +122,38 @@ export interface ScoredTrend {
   velocity: string;
   timestamp: string;
   campaigns: Campaign[];
+}
+
+export interface CompetitorPost {
+  competitor: string;
+  platform: string;
+  type: string;
+  summary: string;
+  copy: string | null;
+  engagement: "alto" | "medio" | "bajo";
+  date: string;
+  opportunity: string | null;
+}
+
+export interface CompetitiveOpportunity {
+  title: string;
+  trigger: string;
+  suggestion: string;
+  urgency: "alta" | "media" | "baja";
+  channel: string;
+}
+
+export interface CompetitorSummary {
+  name: string;
+  activityLevel: "alto" | "medio" | "bajo";
+  mainFocus: string;
+  promos: string[];
+  toneShift: string | null;
+  posts: CompetitorPost[];
+}
+
+export interface CompetitorAnalysis {
+  competitors: CompetitorSummary[];
+  opportunities: CompetitiveOpportunity[];
+  summary: string;
 }

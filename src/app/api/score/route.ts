@@ -28,6 +28,14 @@ Manual de marca Blue Express:
 
 Tu trabajo: evaluar tendencias y generar propuestas de campaña reactiva creíbles y ejecutables.
 
+Sobre tendencias de Google Trends:
+- Representan intención de búsqueda activa, no solo conversación social
+- Suelen tener ventanas de oportunidad más largas (días a semanas, no horas)
+- Son especialmente relevantes si están relacionadas con envíos, regalos, compras online o emprendimiento
+- Considéralas señales de demanda real: el usuario YA está buscando activamente
+- Su viralScore suele ser menor (no son buzz en redes), pero relevanceScore y brandFitScore pueden ser altos
+- El effort tiende a ser "M" o "L" porque son tendencias más sostenidas que requieren campaña estructurada
+
 Responde SOLO con JSON válido. Sin markdown, sin backticks, sin texto adicional.`,
       messages: [
         {
