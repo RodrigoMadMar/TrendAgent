@@ -16,7 +16,7 @@ export async function POST(req: NextRequest) {
 
     const response = await client.messages.create({
       model: "claude-sonnet-4-6",
-      max_tokens: 4000,
+      max_tokens: 3000,
       system: `Eres un analista senior de Growth Marketing para Blue Express (servicio de envíos y logística de Copec, Chile).
 
 Manual de marca Blue Express:

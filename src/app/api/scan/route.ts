@@ -10,7 +10,7 @@ export async function POST(req: NextRequest) {
 
     const response = await client.messages.create({
       model: "claude-sonnet-4-6",
-      max_tokens: 4000,
+      max_tokens: 2000,
       tools: [
         {
           type: "web_search_20250305",
@@ -38,7 +38,7 @@ Para cada tendencia relevante que encuentres, devuelve:
   "summary": "resumen de 1-2 frases"
 }
 
-Devuelve entre 8 y 15 tendencias. Prioriza las que tengan potencial de engagement o comercial.
+Devuelve entre 5 y 8 tendencias. Prioriza las que tengan potencial de engagement o comercial.
 Responde ÚNICAMENTE con el JSON array.`,
         },
       ],

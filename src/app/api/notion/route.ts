@@ -72,7 +72,7 @@ INSTRUCCIONES:
       },
       body: JSON.stringify({
         model: "claude-sonnet-4-6",
-        max_tokens: 4000,
+        max_tokens: 1500,
         system:
           "Crea campañas y tareas en Notion usando las herramientas MCP. Busca Sprint y Negocio primero, crea campaña, luego tareas vinculadas.",
         messages: [{ role: "user", content: prompt }],
