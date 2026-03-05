@@ -1,8 +1,8 @@
 "use client";
 
 import { useState } from "react";
-import { BRAND, TEAM, getTasksForChannel, offsetDate } from "@/lib/constants";
-import type { ScoredTrend, Campaign } from "@/lib/constants";
+import { BRAND, COMPETITORS, TEAM, getTasksForChannel, offsetDate } from "@/lib/constants";
+import type { ScoredTrend, Campaign, CompetitorAnalysis, CompetitorPost, CompetitiveOpportunity } from "@/lib/constants";
 
 /* ═══════════════════ API CALLS (to our proxy routes) ═══════════════════ */
 
@@ -33,6 +33,24 @@ async function apiNotion(payload: any): Promise<any> {
   return res.json();
 }
 
+async function apiCompetitors(): Promise<CompetitorPost[]> {
+  const res = await fetch("/api/competitors", { method: "POST" });
+  const data = await res.json();
+  if (data.error) throw new Error(data.error);
+  return data.posts || [];
+}
+
+async function apiCompetitorsAnalyze(posts: CompetitorPost[]): Promise<CompetitorAnalysis> {
+  const res = await fetch("/api/competitors/analyze", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ posts }),
+  });
+  const data = await res.json();
+  if (data.error) throw new Error(data.error);
+  return data;
+}
+
 /* ═══════════════════ SMALL UI COMPONENTS ═══════════════════ */
 
 const Score = ({ score, label }: { score: number; label: string }) => {
@@ -51,6 +69,24 @@ const Score = ({ score, label }: { score: number; label: string }) => {
 const EffortTag = ({ effort }: { effort: string }) => {
   const c = { S: { l: "Quick Win", c: "#34d399" }, M: { l: "Medio", c: "#fbbf24" }, L: { l: "Campaña", c: "#f97316" } }[effort] || { l: effort, c: "#888" };
   return <span style={{ fontSize: 9, fontWeight: 600, color: c.c, background: `${c.c}18`, padding: "2px 7px", borderRadius: 12, border: `1px solid ${c.c}33`, whiteSpace: "nowrap" }}>{c.l}</span>;
+};
+
+const COMPETITOR_COLORS: Record<string, string> = {
+  "Chilexpress": "#FF6B00",
+  "Starken": "#E31837",
+  "Correos de Chile": "#003DA5",
+};
+
+const PLATFORM_ICONS: Record<string, string> = {
+  "Instagram": "📷",
+  "X": "𝕏",
+  "TikTok": "🎵",
+};
+
+const URGENCY_COLORS: Record<string, string> = {
+  "alta": "#f87171",
+  "media": "#fbbf24",
+  "baja": "#34d399",
 };
 
 const CHANNEL_STYLES: Record<string, { color: string; icon: string }> = {
@@ -93,6 +129,111 @@ const VoteBtn = ({ votes, onVote, voted }: { votes: number; onVote: () => void; 
     <span>{voted ? "▲" : "△"}</span><span>{votes + (voted ? 1 : 0)}</span>
   </button>
 );
+
+/* ═══════════════════ COMPETITOR COMPONENTS ═══════════════════ */
+
+function CompetitorPostCard({ post }: { post: CompetitorPost }) {
+  const color = COMPETITOR_COLORS[post.competitor] || "#888";
+  const platformIcon = PLATFORM_ICONS[post.platform] || "📡";
+  const engagementColor = { alto: "#34d399", medio: "#fbbf24", bajo: "#f87171" }[post.engagement] || "#888";
+  return (
+    <div style={{ background: "rgba(255,255,255,0.02)", border: "1px solid rgba(255,255,255,0.06)", borderRadius: 8, padding: 10, marginTop: 6 }}>
+      <div style={{ display: "flex", alignItems: "flex-start", gap: 8 }}>
+        <span style={{ fontSize: 14, flexShrink: 0 }}>{platformIcon}</span>
+        <div style={{ flex: 1, minWidth: 0 }}>
+          <div style={{ display: "flex", gap: 5, flexWrap: "wrap", marginBottom: 4 }}>
+            <span style={{ fontSize: 8, fontWeight: 700, color, background: `${color}18`, padding: "1px 6px", borderRadius: 4, border: `1px solid ${color}33` }}>{post.platform}</span>
+            <span style={{ fontSize: 8, fontWeight: 600, color: "#888", background: "rgba(255,255,255,0.04)", padding: "1px 6px", borderRadius: 4 }}>{post.type}</span>
+            <span style={{ fontSize: 8, fontWeight: 600, color: engagementColor }}>● {post.engagement}</span>
+            <span style={{ fontSize: 8, color: "#555" }}>{post.date}</span>
+          </div>
+          <p style={{ fontSize: 11, color: "#ccc", margin: "0 0 4px", lineHeight: 1.4 }}>{post.summary}</p>
+          {post.copy && <p style={{ fontSize: 10, color: "#888", fontStyle: "italic", margin: "0 0 4px" }}>&quot;{post.copy}&quot;</p>}
+          {post.opportunity && (
+            <div style={{ fontSize: 9, color: "#4d94ff", background: "rgba(0,102,255,0.06)", padding: "4px 8px", borderRadius: 5, border: "1px solid rgba(0,102,255,0.15)", marginTop: 4 }}>
+              💡 {post.opportunity}
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function OpportunityCard({ opp, onNotion }: { opp: CompetitiveOpportunity; onNotion: () => void }) {
+  const urgencyColor = URGENCY_COLORS[opp.urgency] || "#888";
+  const channelStyle = CHANNEL_STYLES[opp.channel] || { color: "#888", icon: "📡" };
+  return (
+    <div style={{ background: "rgba(0,102,255,0.04)", border: "1px solid rgba(0,102,255,0.12)", borderRadius: 10, padding: 12, marginBottom: 8 }}>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 8, marginBottom: 6 }}>
+        <div style={{ flex: 1 }}>
+          <div style={{ display: "flex", gap: 5, flexWrap: "wrap", marginBottom: 4 }}>
+            <span style={{ fontSize: 12, fontWeight: 700, color: "#e5e5e5" }}>{opp.title}</span>
+            <span style={{ fontSize: 8, fontWeight: 700, color: urgencyColor, background: `${urgencyColor}18`, padding: "2px 6px", borderRadius: 10, border: `1px solid ${urgencyColor}33` }}>urgencia {opp.urgency}</span>
+          </div>
+          <p style={{ fontSize: 10, color: "#888", margin: "0 0 4px" }}>Trigger: {opp.trigger}</p>
+          <p style={{ fontSize: 11, color: "#aaa", margin: 0, lineHeight: 1.4 }}>{opp.suggestion}</p>
+        </div>
+        <div style={{ flexShrink: 0, display: "flex", flexDirection: "column", gap: 4, alignItems: "flex-end" }}>
+          <span style={{ display: "inline-flex", alignItems: "center", gap: 3, fontSize: 9, fontWeight: 700, color: channelStyle.color, background: `${channelStyle.color}18`, padding: "2px 7px", borderRadius: 6, border: `1px solid ${channelStyle.color}33`, whiteSpace: "nowrap" }}>
+            {channelStyle.icon} {opp.channel}
+          </span>
+          <button onClick={onNotion} style={{ display: "flex", alignItems: "center", gap: 4, padding: "5px 10px", borderRadius: 6, cursor: "pointer", background: "rgba(52,211,153,0.08)", border: "1px solid rgba(52,211,153,0.2)", color: "#34d399", fontSize: 10, fontWeight: 700, whiteSpace: "nowrap" }}>
+            📋 Notion
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function CompetitorCard({ comp, open, toggle }: { comp: any; open: boolean; toggle: () => void }) {
+  const color = COMPETITOR_COLORS[comp.name] || "#888";
+  const activityColor = { alto: "#34d399", medio: "#fbbf24", bajo: "#f87171" }[comp.activityLevel as string] || "#888";
+  const emoji = { "Chilexpress": "🟠", "Starken": "🔴", "Correos de Chile": "🔵" }[comp.name as string] || "⚫";
+  return (
+    <div style={{ background: "rgba(255,255,255,0.03)", border: `1px solid ${color}22`, borderRadius: 12, overflow: "hidden", marginBottom: 10 }}>
+      <div onClick={toggle} style={{ padding: 14, cursor: "pointer" }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+          <div style={{ width: 36, height: 36, borderRadius: 8, flexShrink: 0, background: `${color}18`, border: `1px solid ${color}33`, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 18 }}>{emoji}</div>
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap" }}>
+              <span style={{ fontSize: 14, fontWeight: 700, color: "#f0f0f0" }}>{comp.name}</span>
+              <span style={{ fontSize: 8, fontWeight: 700, color: activityColor, background: `${activityColor}18`, padding: "2px 6px", borderRadius: 10, border: `1px solid ${activityColor}33` }}>actividad {comp.activityLevel}</span>
+            </div>
+            <p style={{ fontSize: 11, color: "#999", margin: "2px 0 0", lineHeight: 1.3 }}>{comp.mainFocus}</p>
+          </div>
+          <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-end", gap: 2, flexShrink: 0 }}>
+            <span style={{ fontSize: 12, color: "#555", fontFamily: "'JetBrains Mono', monospace", fontWeight: 700 }}>{(comp.posts || []).length} posts</span>
+            <span style={{ color: "#444", fontSize: 12, transition: "transform 0.2s", transform: open ? "rotate(180deg)" : "rotate(0)" }}>▼</span>
+          </div>
+        </div>
+        {comp.promos?.length > 0 && (
+          <div style={{ display: "flex", gap: 4, flexWrap: "wrap", marginTop: 8 }}>
+            {comp.promos.map((p: string, i: number) => (
+              <span key={i} style={{ fontSize: 8, color: "#fbbf24", background: "rgba(251,191,36,0.1)", padding: "2px 6px", borderRadius: 4, border: "1px solid rgba(251,191,36,0.2)" }}>🏷️ {p}</span>
+            ))}
+          </div>
+        )}
+      </div>
+      {open && (
+        <div style={{ padding: "0 14px 14px", borderTop: "1px solid rgba(255,255,255,0.05)" }}>
+          {comp.toneShift && (
+            <div style={{ fontSize: 10, color: "#f97316", background: "rgba(249,115,22,0.06)", padding: "6px 10px", borderRadius: 6, border: "1px solid rgba(249,115,22,0.15)", margin: "10px 0 4px" }}>
+              ⚡ Cambio de tono: {comp.toneShift}
+            </div>
+          )}
+          {(comp.posts || []).length === 0 && (
+            <p style={{ fontSize: 11, color: "#555", margin: "10px 0 0", fontStyle: "italic" }}>Sin publicaciones recientes detectadas.</p>
+          )}
+          {(comp.posts || []).map((post: CompetitorPost, i: number) => (
+            <CompetitorPostCard key={i} post={post} />
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
 
 /* ═══════════════════ NOTION MODAL ═══════════════════ */
 
@@ -272,6 +413,9 @@ function TrendCard({ t, open, toggle, votes, onVote, onCreate }: {
 /* ═══════════════════ MAIN PAGE ═══════════════════ */
 
 export default function Dashboard() {
+  const [activeTab, setActiveTab] = useState<"tendencias" | "competencia">("tendencias");
+
+  // Tendencias state
   const [trends, setTrends] = useState<ScoredTrend[]>([]);
   const [phase, setPhase] = useState<"idle" | "fetching" | "scoring" | "done" | "error">("idle");
   const [statusMsg, setStatusMsg] = useState("");
@@ -280,6 +424,36 @@ export default function Dashboard() {
   const [filter, setFilter] = useState("all");
   const [sortBy, setSortBy] = useState("score");
   const [modal, setModal] = useState<{ campaign: Campaign; trend: ScoredTrend } | null>(null);
+
+  // Competencia state
+  const [compData, setCompData] = useState<CompetitorAnalysis | null>(null);
+  const [compPhase, setCompPhase] = useState<"idle" | "fetching" | "analyzing" | "done" | "error">("idle");
+  const [compMsg, setCompMsg] = useState("");
+  const [compExpanded, setCompExpanded] = useState<string | null>(null);
+
+  const scanCompetitors = async () => {
+    setCompPhase("fetching");
+    setCompMsg("Scrapeando publicaciones de competidores...");
+    setCompData(null);
+    try {
+      const posts = await apiCompetitors();
+      if (!posts.length) { setCompPhase("error"); setCompMsg("No se encontraron publicaciones."); return; }
+      setCompPhase("analyzing");
+      setCompMsg(`Analizando ${posts.length} publicaciones con Claude...`);
+      const analysis = await apiCompetitorsAnalyze(posts);
+      setCompData(analysis);
+      setCompPhase("done");
+      setCompMsg(`${posts.length} publicaciones analizadas`);
+    } catch (e: any) {
+      setCompPhase("error");
+      setCompMsg(e.message || "Error desconocido");
+    }
+  };
+
+  const oppToNotion = (opp: CompetitiveOpportunity): { campaign: Campaign; trend: ScoredTrend } => ({
+    campaign: { id: `opp-${opp.title}`, title: opp.title, channel: opp.channel, copy: opp.suggestion, cta: "Ver más", estimatedReach: "—", votes: 0 },
+    trend: { id: 0, title: `Competencia: ${opp.trigger}`, source: "Competencia", sourceIcon: "🏁", category: "Competencia", summary: opp.suggestion, relevanceScore: 0, viralScore: 0, brandFitScore: 0, timingWindow: "—", effort: "M", volume: 0, velocity: "—", timestamp: "Ahora", campaigns: [] },
+  });
 
   const scan = async () => {
     setPhase("fetching");
@@ -325,28 +499,61 @@ export default function Dashboard() {
             <span style={{ color: "#fff" }}>Trend Scout</span>
             <span style={{ color: "#0066ff", marginLeft: 5 }}>Agent</span>
           </h1>
-          {phase === "done" && <span style={{ fontSize: 8, color: "#34d399", background: "rgba(52,211,153,0.15)", padding: "2px 7px", borderRadius: 12, fontWeight: 700 }}>LIVE</span>}
+          {(phase === "done" || compPhase === "done") && <span style={{ fontSize: 8, color: "#34d399", background: "rgba(52,211,153,0.15)", padding: "2px 7px", borderRadius: 12, fontWeight: 700 }}>LIVE</span>}
         </div>
         <p style={{ fontSize: 10, color: "#555", margin: "0 2px 2px" }}>Scraping real · Scoring IA · Push a Notion · Blue Express × Copec</p>
-        <p style={{ fontSize: 10, color: "#4d94ff", margin: "0 0 12px", fontWeight: 600 }}>Líder de Negocio: Rodrigo Madariaga</p>
+        <p style={{ fontSize: 10, color: "#4d94ff", margin: "0 0 10px", fontWeight: 600 }}>Líder de Negocio: Rodrigo Madariaga</p>
 
-        <button onClick={scan} disabled={phase === "fetching" || phase === "scoring"} style={{
-          width: "100%", padding: 12, borderRadius: 10, border: "none",
-          cursor: phase === "fetching" || phase === "scoring" ? "not-allowed" : "pointer",
-          background: phase === "fetching" || phase === "scoring" ? "rgba(255,255,255,0.05)" : "linear-gradient(135deg, #0044cc, #0066ff)",
-          color: phase === "fetching" || phase === "scoring" ? "#888" : "#fff",
-          fontSize: 14, fontWeight: 700, marginBottom: 10,
-        }}>
-          {phase === "idle" ? "🔍 Escanear tendencias ahora" : phase === "fetching" ? "📡 Buscando..." : phase === "scoring" ? "🧠 Scoring con IA..." : phase === "error" ? "🔄 Reintentar" : "🔍 Nuevo escaneo"}
-        </button>
+        <div style={{ display: "flex", gap: 4, marginBottom: 12 }}>
+          {([{ k: "tendencias", l: "📡 Tendencias" }, { k: "competencia", l: "🏁 Competencia" }] as const).map((tab) => (
+            <button key={tab.k} onClick={() => setActiveTab(tab.k)} style={{
+              padding: "6px 14px", borderRadius: 8, fontSize: 11, fontWeight: 700, cursor: "pointer",
+              border: activeTab === tab.k ? "1px solid #0066ff" : "1px solid rgba(255,255,255,0.08)",
+              background: activeTab === tab.k ? "rgba(0,102,255,0.15)" : "transparent",
+              color: activeTab === tab.k ? "#4d94ff" : "#555",
+            }}>{tab.l}</button>
+          ))}
+        </div>
 
-        {statusMsg && (
-          <div style={{ fontSize: 11, color: phase === "error" ? "#f87171" : "#4d94ff", textAlign: "center", marginBottom: 8, padding: "6px 10px", background: "rgba(0,102,255,0.05)", borderRadius: 8 }}>
-            {statusMsg}
-          </div>
+        {activeTab === "tendencias" && (
+          <>
+            <button onClick={scan} disabled={phase === "fetching" || phase === "scoring"} style={{
+              width: "100%", padding: 12, borderRadius: 10, border: "none",
+              cursor: phase === "fetching" || phase === "scoring" ? "not-allowed" : "pointer",
+              background: phase === "fetching" || phase === "scoring" ? "rgba(255,255,255,0.05)" : "linear-gradient(135deg, #0044cc, #0066ff)",
+              color: phase === "fetching" || phase === "scoring" ? "#888" : "#fff",
+              fontSize: 14, fontWeight: 700, marginBottom: 10,
+            }}>
+              {phase === "idle" ? "🔍 Escanear tendencias ahora" : phase === "fetching" ? "📡 Buscando..." : phase === "scoring" ? "🧠 Scoring con IA..." : phase === "error" ? "🔄 Reintentar" : "🔍 Nuevo escaneo"}
+            </button>
+            {statusMsg && (
+              <div style={{ fontSize: 11, color: phase === "error" ? "#f87171" : "#4d94ff", textAlign: "center", marginBottom: 8, padding: "6px 10px", background: "rgba(0,102,255,0.05)", borderRadius: 8 }}>
+                {statusMsg}
+              </div>
+            )}
+          </>
         )}
 
-        {trends.length > 0 && (
+        {activeTab === "competencia" && (
+          <>
+            <button onClick={scanCompetitors} disabled={compPhase === "fetching" || compPhase === "analyzing"} style={{
+              width: "100%", padding: 12, borderRadius: 10, border: "none",
+              cursor: compPhase === "fetching" || compPhase === "analyzing" ? "not-allowed" : "pointer",
+              background: compPhase === "fetching" || compPhase === "analyzing" ? "rgba(255,255,255,0.05)" : "linear-gradient(135deg, #550000, #991b1b)",
+              color: compPhase === "fetching" || compPhase === "analyzing" ? "#888" : "#fff",
+              fontSize: 14, fontWeight: 700, marginBottom: 10,
+            }}>
+              {compPhase === "idle" ? "🏁 Escanear competencia ahora" : compPhase === "fetching" ? "📡 Buscando publicaciones..." : compPhase === "analyzing" ? "🧠 Analizando con IA..." : compPhase === "error" ? "🔄 Reintentar" : "🏁 Nuevo escaneo de competencia"}
+            </button>
+            {compMsg && (
+              <div style={{ fontSize: 11, color: compPhase === "error" ? "#f87171" : "#4d94ff", textAlign: "center", marginBottom: 8, padding: "6px 10px", background: "rgba(0,102,255,0.05)", borderRadius: 8 }}>
+                {compMsg}
+              </div>
+            )}
+          </>
+        )}
+
+        {activeTab === "tendencias" && trends.length > 0 && (
           <>
             <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 6, marginBottom: 12 }}>
               {[
@@ -388,7 +595,7 @@ export default function Dashboard() {
       </div>
 
       {/* BRAND BAR */}
-      {trends.length > 0 && (
+      {activeTab === "tendencias" && trends.length > 0 && (
         <div style={{ padding: "8px 16px", borderBottom: "1px solid rgba(255,255,255,0.04)" }}>
           <div style={{ display: "flex", alignItems: "center", gap: 5, flexWrap: "wrap", padding: "6px 10px", background: "rgba(0,102,255,0.03)", borderRadius: 8, border: "1px solid rgba(0,102,255,0.06)" }}>
             <span style={{ fontSize: 8, color: "#555", fontWeight: 700, textTransform: "uppercase" }}>Marca</span>
@@ -398,28 +605,77 @@ export default function Dashboard() {
         </div>
       )}
 
-      {/* STATES */}
-      {phase === "idle" && (
-        <div style={{ textAlign: "center", padding: "60px 20px" }}>
-          <div style={{ fontSize: 48, marginBottom: 16 }}>📡</div>
-          <div style={{ fontSize: 16, fontWeight: 700, color: "#555", marginBottom: 8 }}>Listo para escanear</div>
-          <div style={{ fontSize: 12, color: "#444", maxWidth: 300, margin: "0 auto" }}>Presiona el botón para buscar tendencias reales en X Chile, LimaLimón, farándula y Google Trends Chile.</div>
-        </div>
-      )}
-      {(phase === "fetching" || phase === "scoring") && (
-        <div style={{ textAlign: "center", padding: "60px 20px" }}>
-          <div style={{ fontSize: 48, marginBottom: 16, animation: "pulse 1.5s ease-in-out infinite" }}>{phase === "fetching" ? "📡" : "🧠"}</div>
-          <div style={{ fontSize: 14, fontWeight: 700, color: "#4d94ff" }}>{phase === "fetching" ? "Scrapeando fuentes..." : "Scoring con Claude..."}</div>
-          <style>{`@keyframes pulse{0%,100%{opacity:1}50%{opacity:0.5}}`}</style>
-        </div>
+      {/* ── TENDENCIAS TAB ── */}
+      {activeTab === "tendencias" && (
+        <>
+          {phase === "idle" && (
+            <div style={{ textAlign: "center", padding: "60px 20px" }}>
+              <div style={{ fontSize: 48, marginBottom: 16 }}>📡</div>
+              <div style={{ fontSize: 16, fontWeight: 700, color: "#555", marginBottom: 8 }}>Listo para escanear</div>
+              <div style={{ fontSize: 12, color: "#444", maxWidth: 300, margin: "0 auto" }}>Presiona el botón para buscar tendencias reales en X Chile, LimaLimón, farándula y Google Trends Chile.</div>
+            </div>
+          )}
+          {(phase === "fetching" || phase === "scoring") && (
+            <div style={{ textAlign: "center", padding: "60px 20px" }}>
+              <div style={{ fontSize: 48, marginBottom: 16, animation: "pulse 1.5s ease-in-out infinite" }}>{phase === "fetching" ? "📡" : "🧠"}</div>
+              <div style={{ fontSize: 14, fontWeight: 700, color: "#4d94ff" }}>{phase === "fetching" ? "Scrapeando fuentes..." : "Scoring con Claude..."}</div>
+              <style>{`@keyframes pulse{0%,100%{opacity:1}50%{opacity:0.5}}`}</style>
+            </div>
+          )}
+          {phase === "done" && (
+            <div style={{ padding: "12px 10px" }}>
+              {filtered.map((t) => (
+                <TrendCard key={t.id} t={t} open={expanded === t.id} toggle={() => setExpanded(expanded === t.id ? null : t.id)} votes={votes} onVote={vote} onCreate={(c, tr) => setModal({ campaign: c, trend: tr })} />
+              ))}
+            </div>
+          )}
+        </>
       )}
 
-      {/* CARDS */}
-      {phase === "done" && (
+      {/* ── COMPETENCIA TAB ── */}
+      {activeTab === "competencia" && (
         <div style={{ padding: "12px 10px" }}>
-          {filtered.map((t) => (
-            <TrendCard key={t.id} t={t} open={expanded === t.id} toggle={() => setExpanded(expanded === t.id ? null : t.id)} votes={votes} onVote={vote} onCreate={(c, tr) => setModal({ campaign: c, trend: tr })} />
-          ))}
+          {compPhase === "idle" && (
+            <div style={{ textAlign: "center", padding: "60px 20px" }}>
+              <div style={{ fontSize: 48, marginBottom: 16 }}>🏁</div>
+              <div style={{ fontSize: 16, fontWeight: 700, color: "#555", marginBottom: 8 }}>Monitor de Competencia</div>
+              <div style={{ fontSize: 12, color: "#444", maxWidth: 300, margin: "0 auto" }}>Detecta campañas activas de {COMPETITORS.map((c) => c.name).join(", ")} y genera oportunidades reactivas para Blue Express.</div>
+            </div>
+          )}
+          {(compPhase === "fetching" || compPhase === "analyzing") && (
+            <div style={{ textAlign: "center", padding: "60px 20px" }}>
+              <div style={{ fontSize: 48, marginBottom: 16, animation: "pulse 1.5s ease-in-out infinite" }}>{compPhase === "fetching" ? "🔍" : "🧠"}</div>
+              <div style={{ fontSize: 14, fontWeight: 700, color: "#4d94ff" }}>{compPhase === "fetching" ? "Scrapeando redes de competidores..." : "Analizando panorama competitivo..."}</div>
+              <style>{`@keyframes pulse{0%,100%{opacity:1}50%{opacity:0.5}}`}</style>
+            </div>
+          )}
+          {compPhase === "done" && compData && (
+            <>
+              {/* Summary */}
+              {compData.summary && (
+                <div style={{ background: "rgba(255,255,255,0.02)", border: "1px solid rgba(255,255,255,0.07)", borderRadius: 10, padding: 12, marginBottom: 12 }}>
+                  <div style={{ fontSize: 9, color: "#555", textTransform: "uppercase", letterSpacing: 1, fontWeight: 700, marginBottom: 6 }}>Panorama Competitivo</div>
+                  <p style={{ fontSize: 12, color: "#ccc", margin: 0, lineHeight: 1.5 }}>{compData.summary}</p>
+                </div>
+              )}
+
+              {/* Opportunities */}
+              {compData.opportunities?.length > 0 && (
+                <div style={{ marginBottom: 16 }}>
+                  <div style={{ fontSize: 9, color: "#555", textTransform: "uppercase", letterSpacing: 1, fontWeight: 700, marginBottom: 8 }}>Oportunidades Reactivas ({compData.opportunities.length})</div>
+                  {compData.opportunities.map((opp, i) => (
+                    <OpportunityCard key={i} opp={opp} onNotion={() => setModal(oppToNotion(opp))} />
+                  ))}
+                </div>
+              )}
+
+              {/* Competitor summary cards */}
+              <div style={{ fontSize: 9, color: "#555", textTransform: "uppercase", letterSpacing: 1, fontWeight: 700, marginBottom: 8 }}>Actividad por Competidor</div>
+              {compData.competitors?.map((comp) => (
+                <CompetitorCard key={comp.name} comp={comp} open={compExpanded === comp.name} toggle={() => setCompExpanded(compExpanded === comp.name ? null : comp.name)} />
+              ))}
+            </>
+          )}
         </div>
       )}
 
