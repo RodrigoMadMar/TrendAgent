@@ -228,6 +228,9 @@ function TrendCard({ t, open, toggle, votes, onVote, onCreate }: {
             <h3 style={{ fontSize: 14, fontWeight: 700, color: "#f0f0f0", margin: "0 0 4px", lineHeight: 1.25 }}>{t.title}</h3>
             <div style={{ display: "flex", alignItems: "center", gap: 5, flexWrap: "wrap" }}>
               <EffortTag effort={t.effort || "M"} />
+              {t.source === "Google Trends" && (
+                <span style={{ fontSize: 8, fontWeight: 700, color: "#34d399", background: "rgba(52,211,153,0.12)", padding: "2px 6px", borderRadius: 10, border: "1px solid rgba(52,211,153,0.25)", whiteSpace: "nowrap" }}>Búsqueda activa</span>
+              )}
               <span style={{ fontSize: 9, color: "#666" }}>{t.source} · {t.timestamp}</span>
             </div>
           </div>
@@ -400,7 +403,7 @@ export default function Dashboard() {
         <div style={{ textAlign: "center", padding: "60px 20px" }}>
           <div style={{ fontSize: 48, marginBottom: 16 }}>📡</div>
           <div style={{ fontSize: 16, fontWeight: 700, color: "#555", marginBottom: 8 }}>Listo para escanear</div>
-          <div style={{ fontSize: 12, color: "#444", maxWidth: 300, margin: "0 auto" }}>Presiona el botón para buscar tendencias reales en X Chile, LimaLimón y farándula.</div>
+          <div style={{ fontSize: 12, color: "#444", maxWidth: 300, margin: "0 auto" }}>Presiona el botón para buscar tendencias reales en X Chile, LimaLimón, farándula y Google Trends Chile.</div>
         </div>
       )}
       {(phase === "fetching" || phase === "scoring") && (
