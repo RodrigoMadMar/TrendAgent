@@ -52,7 +52,7 @@ Para CADA tendencia devuelve:
   "campaigns": [
     {
       "title": "nombre creativo",
-      "channel": "Push + Email" | "Paid Social" | "Instagram + TikTok" | "Push" | "Full funnel" | "Email",
+      "channel": "Email" | "Push" | "Push + Email" | "Instagram Post" | "Instagram Story" | "Instagram + TikTok" | "TikTok" | "Paid Social" | "SMS" | "Full funnel",
       "copy": "texto de comunicación",
       "cta": "call to action",
       "estimatedReach": "estimación"
