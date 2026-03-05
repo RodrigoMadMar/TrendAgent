@@ -24,30 +24,25 @@ Responde SOLO con un JSON array válido. Sin markdown, sin backticks, sin explic
         messages: [
           {
             role: "user",
-            content: `Busca las tendencias actuales en Chile usando estas búsquedas:
+            content: `Hoy es ${new Date().toLocaleDateString("es-CL", { weekday: "long", year: "numeric", month: "long", day: "numeric" })}. Busca tendencias REALES de las últimas 24-72 horas en Chile usando estas búsquedas:
 
-1. Busca "trending topics Chile hoy Twitter X" para los trending topics del momento
-2. Busca "farándula chilena noticias hoy" para titulares de entretenimiento
-3. Busca "limalimon.cl noticias hoy" para LimaLimón
-4. Busca "trends24.in chile" para confirmar tendencias de X
-5. Busca "Google Trends Chile hoy tendencias búsquedas populares" para tendencias de búsqueda
-6. Busca "qué buscan los chilenos hoy envío regalo compras online" para señales de demanda relevantes a logística y e-commerce
+1. Visita "https://trends24.in/chile/" y extrae los hashtags/temas que aparecen como trending ahora mismo en X/Twitter Chile
+2. Busca en noticias recientes de emol.com, biobiochile.cl y meganoticias.cl los titulares de las últimas horas
+3. Busca "site:limalimon.cl" para ver los últimos artículos publicados en LimaLimón Chile
+4. Visita "https://trends.google.com/trends/trendingsearches/daily?geo=CL" para ver las búsquedas en tendencia en Google Chile hoy
+5. Busca eventos, lanzamientos y noticias virales de las últimas 48 horas en Chile (deportes, música, política, farándula, economía)
 
-Para las búsquedas de Google Trends, presta especial atención a términos relacionados con:
-- Envíos y logística: "enviar paquete", "courier Chile", "envío barato"
-- E-commerce: "comprar online Chile", "tienda online", "marketplace Chile"
-- Estacionalidad: regalos por fechas especiales, vuelta a clases, eventos comerciales
-- Emprendimiento: "cómo vender online Chile", "emprendimiento Chile"
+IMPORTANTE: Solo reporta tendencias y noticias CONCRETAS y RECIENTES (últimas 72 horas). No inventes ni uses conocimiento previo. Si encuentras un trending topic específico (ej: "#NombrePersona", "Nombre Evento"), repórtalo tal como está. NO reportes categorías genéricas como "compras online" o "Mercado Libre envío gratis" a menos que haya un evento o noticia específica y reciente que lo justifique.
 
-Para cada tendencia relevante que encuentres, devuelve:
+Para cada tendencia concreta que encuentres, devuelve:
 {
-  "title": "nombre de la tendencia o titular",
+  "title": "nombre exacto de la tendencia, hashtag o titular",
   "source": "X Trending" | "LimaLimón" | "Farándula Chile" | "Noticias" | "Google Trends",
   "category": "Entretenimiento" | "Farándula" | "Deportes" | "Música" | "Reality" | "Negocios" | "Estacional" | "E-commerce" | "Logística" | otra,
-  "summary": "resumen de 1-2 frases. Para Google Trends, incluye el % de crecimiento si está disponible."
+  "summary": "qué está pasando exactamente, con contexto concreto. Para Google Trends, incluye el volumen o % de crecimiento si está disponible."
 }
 
-Devuelve entre 7 y 10 tendencias en total (incluyendo al menos 2-3 de Google Trends si encuentras señales relevantes). Prioriza las que tengan potencial de engagement o comercial.
+Devuelve entre 7 y 10 tendencias en total (incluyendo al menos 2-3 de Google Trends reales del día). Prioriza las más recientes y con mayor volumen de conversación.
 Responde ÚNICAMENTE con el JSON array.`,
           },
         ],
