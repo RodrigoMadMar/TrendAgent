@@ -22,13 +22,22 @@ export async function POST(req: NextRequest) {
         messages: [
           {
             role: "user",
-            content: `Hoy ${new Date().toLocaleDateString("es-CL")}. Haz MÁXIMO 3 búsquedas para encontrar tendencias reales en Chile:
-1. trends24.in/chile — trending X/Twitter Chile ahora
-2. Google Trends Chile hoy — búsquedas populares del día
-3. Noticias virales Chile últimas 48h (farándula, deportes, entretenimiento)
+            content: `Fecha y hora actual: ${new Date().toLocaleString("es-CL", { timeZone: "America/Santiago" })}.
 
-Devuelve 6-8 items. NO inventes, NO uses categorías genéricas sin evento concreto.
-Formato: [{"title":"...","source":"X Trending|Google Trends|Noticias|LimaLimón","category":"...","summary":"..."}]`,
+Haz estas búsquedas en orden para obtener tendencias REALES y ACTUALES de Chile:
+
+1. Busca exactamente: "site:trends24.in/chile" — extrae los hashtags/temas que aparecen en la página ahora mismo
+2. Busca: "trending twitter chile hoy ${new Date().toLocaleDateString("es-CL")}" — para confirmar tendencias actuales
+3. Busca: "noticias chile viral hoy ${new Date().toLocaleDateString("es-CL")}" — noticias del día (farándula, deportes, política)
+
+REGLAS ESTRICTAS:
+- Reporta EXACTAMENTE lo que encuentres en los resultados de búsqueda, no lo que creas que debería estar trending
+- Si trends24.in muestra "#DiaInternacionalDeLaMujer", incluye ESO, no otra cosa
+- NO uses conocimiento previo de tendencias pasadas
+- La fecha de hoy es ${new Date().toLocaleDateString("es-CL")} — todo debe ser de HOY
+
+Devuelve 8-12 items. Formato SOLO JSON sin markdown:
+[{"title":"...","source":"X Trending|Google Trends|Noticias","category":"...","summary":"...","volume":"..."}]`,
           },
         ],
       },
