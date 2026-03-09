@@ -1,12 +1,8 @@
 import { NextResponse } from "next/server";
-import { chromium } from "playwright-core";
 import { getClient } from "@/lib/anthropic";
+import { launchBrowser } from "@/lib/browser";
 
 export const maxDuration = 120;
-
-// Set CHROMIUM_EXECUTABLE_PATH env var to override (e.g. Vercel with @sparticuz/chromium).
-// Otherwise playwright uses its auto-detected path (run `npx playwright install chromium` once).
-const CHROMIUM_PATH = process.env.CHROMIUM_EXECUTABLE_PATH || undefined;
 
 const META_ADS_URL = (q: string) =>
   `https://www.facebook.com/ads/library/?active_status=active&ad_type=all&country=CL&q=${encodeURIComponent(q)}&search_type=keyword_unordered`;
@@ -14,17 +10,7 @@ const META_ADS_URL = (q: string) =>
 export async function POST() {
   let browser;
   try {
-    browser = await chromium.launch({
-      ...(CHROMIUM_PATH ? { executablePath: CHROMIUM_PATH } : {}),
-      headless: true,
-      args: [
-        "--no-sandbox",
-        "--disable-setuid-sandbox",
-        "--disable-dev-shm-usage",
-        "--disable-gpu",
-        "--disable-extensions",
-      ],
-    });
+    browser = await launchBrowser();
 
     const context = await browser.newContext({
       viewport: { width: 1280, height: 900 },
