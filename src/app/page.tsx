@@ -192,7 +192,19 @@ function OpportunityCard({ opp, onNotion }: { opp: CompetitiveOpportunity; onNot
   );
 }
 
-function CompetitorCard({ comp, open, toggle }: { comp: any; open: boolean; toggle: () => void }) {
+function CompetitorCard({
+  comp,
+  open,
+  toggle,
+  screenshots,
+  onScreenshot,
+}: {
+  comp: any;
+  open: boolean;
+  toggle: () => void;
+  screenshots?: { platform: string; screenshotB64: string }[];
+  onScreenshot?: (b64: string) => void;
+}) {
   const color = COMPETITOR_COLORS[comp.name] || "#888";
   const activityColor = { alto: "#34d399", medio: "#fbbf24", bajo: "#f87171" }[comp.activityLevel as string] || "#888";
   const emoji = { "Chilexpress": "🟠", "Starken": "🔴", "Correos de Chile": "🔵" }[comp.name as string] || "⚫";
@@ -209,6 +221,11 @@ function CompetitorCard({ comp, open, toggle }: { comp: any; open: boolean; togg
             <p style={{ fontSize: 11, color: "#999", margin: "2px 0 0", lineHeight: 1.3 }}>{comp.mainFocus}</p>
           </div>
           <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-end", gap: 2, flexShrink: 0 }}>
+            <div style={{ display: "flex", gap: 3 }}>
+              {(screenshots || []).map(s => (
+                <span key={s.platform} style={{ fontSize: 7, color: "#555", background: "rgba(255,255,255,0.05)", padding: "1px 4px", borderRadius: 3 }}>{s.platform === "Instagram" ? "IG" : "𝕏"}</span>
+              ))}
+            </div>
             <span style={{ fontSize: 12, color: "#555", fontFamily: "'JetBrains Mono', monospace", fontWeight: 700 }}>{(comp.posts || []).length} posts</span>
             <span style={{ color: "#444", fontSize: 12, transition: "transform 0.2s", transform: open ? "rotate(180deg)" : "rotate(0)" }}>▼</span>
           </div>
@@ -222,18 +239,42 @@ function CompetitorCard({ comp, open, toggle }: { comp: any; open: boolean; togg
         )}
       </div>
       {open && (
-        <div style={{ padding: "0 14px 14px", borderTop: "1px solid rgba(255,255,255,0.05)" }}>
-          {comp.toneShift && (
-            <div style={{ fontSize: 10, color: "#f97316", background: "rgba(249,115,22,0.06)", padding: "6px 10px", borderRadius: 6, border: "1px solid rgba(249,115,22,0.15)", margin: "10px 0 4px" }}>
-              ⚡ Cambio de tono: {comp.toneShift}
+        <div style={{ borderTop: "1px solid rgba(255,255,255,0.05)" }}>
+          {/* RRSS screenshot thumbnails */}
+          {(screenshots || []).length > 0 && (
+            <div style={{ display: "grid", gridTemplateColumns: `repeat(${(screenshots || []).length}, 1fr)`, gap: 6, padding: "10px 14px 6px" }}>
+              {(screenshots || []).map(s => (
+                <div key={s.platform} style={{ cursor: "zoom-in" }} onClick={(e) => { e.stopPropagation(); onScreenshot?.(s.screenshotB64); }}>
+                  <div style={{ fontSize: 8, color: "#555", marginBottom: 3, fontWeight: 600 }}>
+                    {s.platform === "Instagram" ? "📸 Instagram" : "𝕏 X / Twitter"}
+                  </div>
+                  <div style={{ position: "relative", overflow: "hidden", borderRadius: 6, border: `1px solid ${color}22` }}>
+                    <img
+                      src={`data:image/jpeg;base64,${s.screenshotB64}`}
+                      alt={`${comp.name} ${s.platform}`}
+                      style={{ width: "100%", display: "block", maxHeight: 120, objectFit: "cover", objectPosition: "top" }}
+                    />
+                    <div style={{ position: "absolute", inset: 0, background: "linear-gradient(to bottom, transparent 60%, rgba(0,0,0,0.4))", display: "flex", alignItems: "flex-end", justifyContent: "flex-end", padding: 4 }}>
+                      <span style={{ fontSize: 7, color: "#fff", background: "rgba(0,0,0,0.5)", padding: "1px 4px", borderRadius: 3 }}>🔍 Ver</span>
+                    </div>
+                  </div>
+                </div>
+              ))}
             </div>
           )}
-          {(comp.posts || []).length === 0 && (
-            <p style={{ fontSize: 11, color: "#555", margin: "10px 0 0", fontStyle: "italic" }}>Sin publicaciones recientes detectadas.</p>
-          )}
-          {(comp.posts || []).map((post: CompetitorPost, i: number) => (
-            <CompetitorPostCard key={i} post={post} />
-          ))}
+          <div style={{ padding: "0 14px 14px" }}>
+            {comp.toneShift && (
+              <div style={{ fontSize: 10, color: "#f97316", background: "rgba(249,115,22,0.06)", padding: "6px 10px", borderRadius: 6, border: "1px solid rgba(249,115,22,0.15)", marginBottom: 8 }}>
+                ⚡ Cambio de tono: {comp.toneShift}
+              </div>
+            )}
+            {(comp.posts || []).length === 0 && (
+              <p style={{ fontSize: 11, color: "#555", margin: "0", fontStyle: "italic" }}>Sin publicaciones recientes detectadas.</p>
+            )}
+            {(comp.posts || []).map((post: CompetitorPost, i: number) => (
+              <CompetitorPostCard key={i} post={post} />
+            ))}
+          </div>
         </div>
       )}
     </div>
@@ -446,7 +487,10 @@ export default function Dashboard() {
   const [metaAds, setMetaAds] = useState<MetaAdsCompetitorResult[]>([]);
   const [metaPhase, setMetaPhase] = useState<"idle" | "fetching" | "done" | "error">("idle");
   const [metaMsg, setMetaMsg] = useState("");
-  const [metaScreenshot, setMetaScreenshot] = useState<string | null>(null); // which competitor screenshot to expand
+  const [metaScreenshot, setMetaScreenshot] = useState<string | null>(null);
+
+  // Competitor screenshots lightbox
+  const [compScreenshot, setCompScreenshot] = useState<string | null>(null);
 
 
   const scanCompetitors = async () => {
@@ -902,9 +946,28 @@ export default function Dashboard() {
                       ))}
                     </div>
                   )}
+                  {/* RRSS screenshot lightbox */}
+                  {compScreenshot && (
+                    <div onClick={() => setCompScreenshot(null)} style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.85)", zIndex: 2000, display: "flex", alignItems: "center", justifyContent: "center", padding: 16 }}>
+                      <div style={{ position: "relative", maxWidth: "95vw", maxHeight: "90vh" }}>
+                        <img src={`data:image/jpeg;base64,${compScreenshot}`} alt="RRSS screenshot" style={{ maxWidth: "100%", maxHeight: "85vh", borderRadius: 10, border: "1px solid rgba(255,255,255,0.1)" }} />
+                        <button onClick={() => setCompScreenshot(null)} style={{ position: "absolute", top: -12, right: -12, width: 28, height: 28, borderRadius: "50%", background: "#222", border: "1px solid rgba(255,255,255,0.15)", color: "#aaa", fontSize: 14, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}>✕</button>
+                      </div>
+                    </div>
+                  )}
+
                   <div style={{ fontSize: 9, color: "#555", textTransform: "uppercase", letterSpacing: 1, fontWeight: 700, marginBottom: 8 }}>Actividad por Competidor</div>
                   {compData.competitors?.map((comp) => (
-                    <CompetitorCard key={comp.name} comp={comp} open={compExpanded === comp.name} toggle={() => setCompExpanded(compExpanded === comp.name ? null : comp.name)} />
+                    <CompetitorCard
+                      key={comp.name}
+                      comp={comp}
+                      open={compExpanded === comp.name}
+                      toggle={() => setCompExpanded(compExpanded === comp.name ? null : comp.name)}
+                      screenshots={(compData.screenshots || [])
+                        .filter((s) => s.competitor === comp.name)
+                        .map(({ platform, screenshotB64 }) => ({ platform, screenshotB64 }))}
+                      onScreenshot={setCompScreenshot}
+                    />
                   ))}
                 </>
               )}
