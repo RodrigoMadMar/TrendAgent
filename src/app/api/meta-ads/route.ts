@@ -4,8 +4,10 @@ import { launchBrowser } from "@/lib/browser";
 
 export const maxDuration = 120;
 
-const META_ADS_URL = (q: string) =>
-  `https://www.facebook.com/ads/library/?active_status=active&ad_type=all&country=CL&q=${encodeURIComponent(q)}&search_type=keyword_unordered`;
+const META_ADS_URLS: Record<string, string> = {
+  "Chilexpress": "https://www.facebook.com/ads/library/?active_status=active&ad_type=all&country=CL&is_targeted_country=false&media_type=all&search_type=page&sort_data[direction]=desc&sort_data[mode]=total_impressions&view_all_page_id=115654101845108",
+  "Starken": "https://www.facebook.com/ads/library/?active_status=active&ad_type=all&country=ALL&is_targeted_country=false&media_type=all&search_type=page&sort_data[direction]=desc&sort_data[mode]=total_impressions&view_all_page_id=1777274075838254",
+};
 
 export async function POST() {
   let browser;
@@ -23,15 +25,12 @@ export async function POST() {
     const client = getClient();
     const results: any[] = [];
 
-    for (const { name, query } of [
-      { name: "Chilexpress", query: "Chilexpress" },
-      { name: "Starken", query: "Starken" },
-    ]) {
+    for (const name of ["Chilexpress", "Starken"]) {
       const page = await context.newPage();
       let screenshotB64: string | null = null;
 
       try {
-        await page.goto(META_ADS_URL(query), {
+        await page.goto(META_ADS_URLS[name], {
           waitUntil: "domcontentloaded",
           timeout: 25000,
         });
