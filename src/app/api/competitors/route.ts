@@ -5,9 +5,9 @@ import { BRAND } from "@/lib/constants";
 
 export const maxDuration = 120;
 
-const CHROMIUM_PATH =
-  process.env.CHROMIUM_EXECUTABLE_PATH ||
-  "/root/.cache/ms-playwright/chromium-1194/chrome-linux/chrome";
+// Set CHROMIUM_EXECUTABLE_PATH env var to override (e.g. for Vercel with @sparticuz/chromium).
+// Otherwise playwright uses its auto-detected path (run `npx playwright install chromium` once).
+const CHROMIUM_PATH = process.env.CHROMIUM_EXECUTABLE_PATH || undefined;
 
 // Instagram and X profiles for the two main competitors
 const PROFILES = [
@@ -21,7 +21,7 @@ export async function POST() {
   let browser;
   try {
     browser = await chromium.launch({
-      executablePath: CHROMIUM_PATH,
+      ...(CHROMIUM_PATH ? { executablePath: CHROMIUM_PATH } : {}),
       headless: true,
       args: [
         "--no-sandbox",
