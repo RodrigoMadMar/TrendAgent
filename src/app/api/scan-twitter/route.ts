@@ -1,8 +1,11 @@
 import { NextResponse } from "next/server";
+import Anthropic from "@anthropic-ai/sdk";
+import { getClient } from "@/lib/anthropic";
 
 export const maxDuration = 60;
 
 export async function POST() {
+  // 1. Try trends24.in scraping first
   try {
     const res = await fetch("https://trends24.in/chile/", {
       headers: {
@@ -17,16 +20,74 @@ export async function POST() {
       cache: "no-store",
     });
 
-    if (!res.ok) throw new Error(`trends24.in respondió con ${res.status}`);
-    const html = await res.text();
+    if (res.ok) {
+      const html = await res.text();
+      const trends = parseTrends24(html);
+      if (trends.length) {
+        return NextResponse.json({
+          trends,
+          source: "trends24.in",
+          fetchedAt: new Date().toISOString(),
+        });
+      }
+    }
+  } catch {
+    // fall through to Claude web_search fallback
+  }
 
-    const trends = parseTrends24(html);
-    if (!trends.length)
-      throw new Error("No se pudieron extraer tendencias de trends24.in/chile");
+  // 2. Fallback: Claude with web_search for real-time X/Twitter Chile trends
+  try {
+    const client = getClient();
+    const response = await client.messages.create(
+      {
+        model: "claude-sonnet-4-6",
+        max_tokens: 1500,
+        tools: [{ type: "web_search_20250305", name: "web_search" } as any],
+        system: `Eres un asistente especializado en tendencias de redes sociales en Chile. Responde SOLO con JSON válido, sin markdown, sin texto adicional.`,
+        messages: [
+          {
+            role: "user",
+            content: `Busca los trending topics actuales en X (Twitter) Chile de hoy. Usa búsquedas como "trending Chile Twitter hoy" o "tendencias X Chile".
+
+Devuelve un JSON array con los 15 temas más trending:
+[
+  {
+    "title": "#NombreDelTrend o Tema",
+    "source": "X Trending",
+    "category": "categoría del tema",
+    "summary": "breve descripción de por qué está trending (1 frase)",
+    "volume": "N/A"
+  }
+]
+
+Categorías posibles: Deportes / Fútbol, Entretenimiento / Farándula, Entretenimiento / TV, Política, Economía, Trending.
+SOLO el JSON array.`,
+          },
+        ],
+      },
+      { headers: { "anthropic-beta": "web-search-2025-03-05" } }
+    );
+
+    const text = response.content
+      .filter((b): b is Anthropic.TextBlock => b.type === "text")
+      .map((b) => b.text)
+      .join("");
+
+    let trends: any[] = [];
+    try {
+      const match = text.replace(/```json?/g, "").replace(/```/g, "").trim();
+      const start = match.indexOf("[");
+      const end = match.lastIndexOf("]");
+      if (start !== -1 && end !== -1) trends = JSON.parse(match.slice(start, end + 1));
+    } catch {
+      throw new Error("No se pudo parsear la respuesta de Claude");
+    }
+
+    if (!trends.length) throw new Error("Claude no encontró trending topics");
 
     return NextResponse.json({
       trends,
-      source: "trends24.in",
+      source: "X Trending (web_search)",
       fetchedAt: new Date().toISOString(),
     });
   } catch (error: any) {
