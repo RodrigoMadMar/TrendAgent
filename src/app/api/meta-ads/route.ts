@@ -84,12 +84,16 @@ export async function POST() {
                 },
                 {
                   type: "text",
-                  text: `Esta es una captura de la Biblioteca de Anuncios de Meta buscando "${query}" en Chile.
+                  text: `Esta es una captura de la Biblioteca de Anuncios de Meta buscando la empresa "${name}" en Chile.
 
-Extrae los anuncios activos visibles. Por cada anuncio devuelve:
+IMPORTANTE: Esta búsqueda usa keywords y puede mostrar anuncios de OTRAS empresas que solo mencionan a ${name} en su texto. Debes IGNORAR esos anuncios.
+
+REGLA ESTRICTA: Solo extrae anuncios cuyo ANUNCIANTE sea exactamente "${name}" (o variantes directas como "${name} S.A.", "${name} Chile", "${name} Express"). Si el anunciante es cualquier otra empresa (ópticas, repuestos, tiendas, etc.), DESCÁRTALO aunque el texto mencione a ${name}.
+
+Por cada anuncio válido devuelve:
 [
   {
-    "advertiser": "nombre del anunciante",
+    "advertiser": "nombre del anunciante tal como aparece",
     "copy": "texto del anuncio (máx 200 chars)",
     "cta": "call to action o null",
     "platform": "Facebook" | "Instagram" | "Facebook e Instagram",
@@ -101,7 +105,7 @@ Extrae los anuncios activos visibles. Por cada anuncio devuelve:
 Texto del DOM para contexto:
 ${domText.slice(0, 600)}
 
-Si hay pantalla de login, sin resultados o error → devuelve [].
+Si hay pantalla de login, sin resultados, o ningún anuncio del anunciante "${name}" → devuelve [].
 SOLO el JSON array, sin markdown.`,
                 },
               ],

@@ -1,11 +1,11 @@
 import { NextResponse } from "next/server";
+import Anthropic from "@anthropic-ai/sdk";
 import { getClient } from "@/lib/anthropic";
 import { BRAND } from "@/lib/constants";
 import { launchBrowser } from "@/lib/browser";
 
 export const maxDuration = 120;
 
-// Instagram and X profiles for the two main competitors
 const PROFILES = [
   { competitor: "Chilexpress", platform: "Instagram", url: "https://www.instagram.com/chilexpress/" },
   { competitor: "Chilexpress", platform: "X", url: "https://x.com/Chilexpress" },
@@ -13,11 +13,11 @@ const PROFILES = [
   { competitor: "Starken", platform: "X", url: "https://x.com/StarkenCL" },
 ];
 
-export async function POST() {
+async function takeProfileScreenshots() {
   let browser;
+  const screenshots: Array<{ competitor: string; platform: string; screenshotB64: string }> = [];
   try {
     browser = await launchBrowser();
-
     const context = await browser.newContext({
       viewport: { width: 1280, height: 900 },
       userAgent:
@@ -25,8 +25,6 @@ export async function POST() {
       locale: "es-CL",
       extraHTTPHeaders: { "Accept-Language": "es-CL,es;q=0.9" },
     });
-
-    const screenshots: Array<{ competitor: string; platform: string; screenshotB64: string }> = [];
 
     for (const { competitor, platform, url } of PROFILES) {
       const page = await context.newPage();
@@ -43,7 +41,7 @@ export async function POST() {
           } catch {}
         }
 
-        // Dismiss login modal (Instagram / X)
+        // Dismiss login modal
         for (const text of ["Ahora no", "Not Now", "Cerrar", "Close", "Dismiss"]) {
           try {
             await page.click(`button:has-text("${text}")`, { timeout: 1200 });
@@ -75,46 +73,49 @@ export async function POST() {
         await page.close();
       }
     }
+  } catch (err: any) {
+    console.error("Browser launch error for screenshots:", err.message);
+  } finally {
+    if (browser) await browser.close();
+  }
+  return screenshots;
+}
 
-    // Build vision prompt with all screenshots
-    const client = getClient();
-    const today = new Date().toLocaleDateString("es-CL", {
-      year: "numeric",
-      month: "long",
-      day: "numeric",
-    });
+async function analyzeWithWebSearch(today: string) {
+  const client = getClient();
 
-    const content: any[] = [];
-    for (const s of screenshots) {
-      content.push({ type: "text", text: `\n=== ${s.competitor} en ${s.platform} ===` });
-      if (s.screenshotB64) {
-        content.push({
-          type: "image",
-          source: { type: "base64", media_type: "image/jpeg", data: s.screenshotB64 },
-        });
-      } else {
-        content.push({ type: "text", text: "(No se pudo cargar — requiere login o error de red)" });
-      }
-    }
+  const response = await client.messages.create(
+    {
+      model: "claude-sonnet-4-6",
+      max_tokens: 4000,
+      tools: [
+        {
+          type: "web_search_20250305",
+          name: "web_search",
+        } as any,
+      ],
+      system: `Eres un analista de inteligencia competitiva para Blue Express, empresa de logística y envíos de Chile. Analiza la actividad reciente en redes sociales de los competidores directos. Responde SOLO con JSON válido, sin markdown ni texto adicional.`,
+      messages: [
+        {
+          role: "user",
+          content: `Hoy es ${today}. Analiza la actividad reciente en redes sociales de los principales competidores logísticos chilenos de Blue Express.
 
-    content.push({
-      type: "text",
-      text: `Hoy es ${today}. Analiza estas capturas de RRSS (Instagram y X) de los principales competidores logísticos chilenos de Blue Express.
+Haz estas búsquedas:
+1. "Chilexpress Instagram publicaciones recientes 2025" — busca sus últimas campañas y posts
+2. "Chilexpress Twitter X Chile 2025" — busca tweets recientes y promociones
+3. "Starken Instagram publicaciones recientes 2025" — busca sus últimas campañas
+4. "Starken Twitter X Chile 2025" — busca tweets recientes y promociones
+5. "Chilexpress promociones descuentos ${today}" — busca ofertas activas
+6. "Starken promociones descuentos ${today}" — busca ofertas activas
 
-Por cada captura identifica:
-- Posts recientes y su temática / campaña
-- Promociones, descuentos o códigos activos visibles
-- Tono de comunicación
-- Engagement aparente (likes, comentarios, RT visibles)
-
-Genera EXACTAMENTE este JSON sin markdown ni texto adicional:
+Con lo que encuentres, genera EXACTAMENTE este JSON sin markdown ni texto adicional:
 {
   "competitors": [
     {
       "name": "Chilexpress",
       "activityLevel": "alto" | "medio" | "bajo",
       "mainFocus": "qué están empujando actualmente (1 línea)",
-      "promos": ["lista de promos/descuentos visibles en las imágenes"],
+      "promos": ["lista de promos/descuentos encontrados"],
       "toneShift": "cambio de tono notable respecto a lo habitual, o null",
       "posts": [
         {
@@ -122,9 +123,9 @@ Genera EXACTAMENTE este JSON sin markdown ni texto adicional:
           "platform": "Instagram" | "X",
           "type": "promo" | "campaña" | "orgánico" | "branding",
           "summary": "descripción del contenido del post (1-2 frases)",
-          "copy": "texto visible del post o null",
+          "copy": "texto del post encontrado o null",
           "engagement": "alto" | "medio" | "bajo",
-          "date": "fecha visible en pantalla o 'reciente'",
+          "date": "fecha del post o 'reciente'",
           "opportunity": "oportunidad específica para Blue Express o null"
         }
       ]
@@ -147,38 +148,50 @@ Genera EXACTAMENTE este JSON sin markdown ni texto adicional:
       "channel": "Push + Email" | "Paid Social" | "Instagram + TikTok" | "Email" | "Push" | "Full funnel"
     }
   ],
-  "summary": "resumen ejecutivo 2-3 líneas del panorama competitivo actual en RRSS"
+  "summary": "resumen ejecutivo 2-3 líneas del panorama competitivo actual"
 }
 
 Contexto Blue Express: pilares ${BRAND.pillars.join(", ")}, tono ${BRAND.tone}, audiencia ${BRAND.audience.join(", ")}.
-Si un perfil no cargó o requiere login, indícalo en mainFocus y usa activityLevel "bajo" con posts vacío.
 Máximo 4 oportunidades ordenadas por urgencia. SOLO JSON.`,
+        },
+      ],
+    },
+    { headers: { "anthropic-beta": "web-search-2025-03-05" } }
+  );
+
+  const texts = response.content
+    .filter((b): b is Anthropic.TextBlock => b.type === "text")
+    .map((b) => b.text)
+    .join("\n");
+
+  let analysis: any = { competitors: [], opportunities: [], summary: "" };
+  try {
+    const clean = texts.replace(/```json?/g, "").replace(/```/g, "").trim();
+    const match = clean.match(/\{[\s\S]*\}/);
+    if (match) analysis = JSON.parse(match[0]);
+  } catch (e) {
+    console.error("Competitors parse error:", e, "\nRaw:", texts.slice(0, 400));
+  }
+  return analysis;
+}
+
+export async function POST() {
+  try {
+    const today = new Date().toLocaleDateString("es-CL", {
+      year: "numeric",
+      month: "long",
+      day: "numeric",
     });
 
-    const response = await client.messages.create({
-      model: "claude-sonnet-4-6",
-      max_tokens: 3000,
-      messages: [{ role: "user", content }],
-    });
-
-    const raw = response.content
-      .filter((b) => b.type === "text")
-      .map((b) => (b as any).text)
-      .join("");
-
-    let analysis: any = { competitors: [], opportunities: [], summary: "" };
-    try {
-      const match = raw.match(/\{[\s\S]*\}/);
-      if (match) analysis = JSON.parse(match[0]);
-    } catch (e) {
-      console.error("Competitors parse error:", e, "\nRaw:", raw.slice(0, 400));
-    }
+    // Run screenshots and web search analysis in parallel
+    const [screenshots, analysis] = await Promise.all([
+      takeProfileScreenshots(),
+      analyzeWithWebSearch(today),
+    ]);
 
     return NextResponse.json({
       ...analysis,
-      screenshots: screenshots
-        .filter((s) => s.screenshotB64)
-        .map(({ competitor, platform, screenshotB64 }) => ({ competitor, platform, screenshotB64 })),
+      screenshots: screenshots.filter((s) => s.screenshotB64),
     });
   } catch (error: any) {
     console.error("Competitors route error:", error);
@@ -186,7 +199,5 @@ Máximo 4 oportunidades ordenadas por urgencia. SOLO JSON.`,
       { error: error.message || "Failed to scan competitors" },
       { status: 500 }
     );
-  } finally {
-    if (browser) await browser.close();
   }
 }
