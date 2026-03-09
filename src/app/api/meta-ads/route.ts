@@ -4,8 +4,6 @@ import { getClient } from "@/lib/anthropic";
 
 export const maxDuration = 120;
 
-// Local dev: uses cached Playwright Chromium
-// Vercel: set CHROMIUM_EXECUTABLE_PATH to @sparticuz/chromium path
 const CHROMIUM_PATH =
   process.env.CHROMIUM_EXECUTABLE_PATH ||
   "/root/.cache/ms-playwright/chromium-1194/chrome-linux/chrome";
@@ -14,39 +12,35 @@ const META_ADS_URL = (q: string) =>
   `https://www.facebook.com/ads/library/?active_status=active&ad_type=all&country=CL&q=${encodeURIComponent(q)}&search_type=keyword_unordered`;
 
 export async function POST() {
-  const browser = await chromium.launch({
-    executablePath: CHROMIUM_PATH,
-    headless: true,
-    args: [
-      "--no-sandbox",
-      "--disable-setuid-sandbox",
-      "--disable-dev-shm-usage",
-      "--disable-gpu",
-      "--disable-extensions",
-      "--single-process",
-    ],
-  });
-
+  let browser;
   try {
+    browser = await chromium.launch({
+      executablePath: CHROMIUM_PATH,
+      headless: true,
+      args: [
+        "--no-sandbox",
+        "--disable-setuid-sandbox",
+        "--disable-dev-shm-usage",
+        "--disable-gpu",
+        "--disable-extensions",
+      ],
+    });
+
     const context = await browser.newContext({
       viewport: { width: 1280, height: 900 },
       userAgent:
         "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/141.0.0.0 Safari/537.36",
       locale: "es-CL",
-      extraHTTPHeaders: {
-        "Accept-Language": "es-CL,es;q=0.9,en-US;q=0.8",
-      },
+      extraHTTPHeaders: { "Accept-Language": "es-CL,es;q=0.9" },
     });
 
-    const results: any[] = [];
     const client = getClient();
+    const results: any[] = [];
 
-    const targets = [
+    for (const { name, query } of [
       { name: "Chilexpress", query: "Chilexpress" },
       { name: "Starken", query: "Starken" },
-    ];
-
-    for (const { name, query } of targets) {
+    ]) {
       const page = await context.newPage();
       let screenshotB64: string | null = null;
 
@@ -56,10 +50,9 @@ export async function POST() {
           timeout: 25000,
         });
 
-        // Wait for React hydration and ad rendering
         await page.waitForTimeout(5000);
 
-        // Dismiss cookie banner (Spanish + English variants)
+        // Dismiss cookie/consent banners
         for (const text of ["Aceptar todo", "Aceptar", "Accept all", "Accept"]) {
           try {
             await page.click(`button:has-text("${text}")`, { timeout: 1500 });
@@ -68,35 +61,26 @@ export async function POST() {
           } catch {}
         }
 
-        // Close any login modal
-        for (const sel of [
-          '[aria-label="Cerrar"]',
-          '[aria-label="Close"]',
-          "._98ez",
-        ]) {
+        // Close login modal if it appears
+        for (const sel of ['[aria-label="Cerrar"]', '[aria-label="Close"]', "._98ez"]) {
           try {
             await page.click(sel, { timeout: 1500 });
             await page.waitForTimeout(400);
             break;
           } catch {}
         }
-        try {
-          await page.keyboard.press("Escape");
-        } catch {}
+        try { await page.keyboard.press("Escape"); } catch {}
 
-        // Let ads settle
         await page.waitForTimeout(2000);
 
-        // Viewport screenshot (JPEG, quality 65 keeps size manageable)
         const buf = await page.screenshot({ type: "jpeg", quality: 65 });
         screenshotB64 = buf.toString("base64");
 
-        // Raw DOM text for context
         const domText: string = await page.evaluate(
           () => document.body.innerText.slice(0, 3000)
         );
 
-        // Claude vision: analyze screenshot and extract ad data
+        // Claude vision analyzes the screenshot
         const visionRes = await client.messages.create({
           model: "claude-sonnet-4-6",
           max_tokens: 1200,
@@ -114,25 +98,25 @@ export async function POST() {
                 },
                 {
                   type: "text",
-                  text: `Esta es una captura de la Biblioteca de Anuncios de Meta (Facebook Ads Library) buscando "${query}" en Chile.
+                  text: `Esta es una captura de la Biblioteca de Anuncios de Meta buscando "${query}" en Chile.
 
-Extrae los anuncios activos que puedas ver. Para cada anuncio devuelve un JSON array:
+Extrae los anuncios activos visibles. Por cada anuncio devuelve:
 [
   {
     "advertiser": "nombre del anunciante",
-    "copy": "texto principal del anuncio (máx 200 chars)",
-    "cta": "call to action visible o null",
+    "copy": "texto del anuncio (máx 200 chars)",
+    "cta": "call to action o null",
     "platform": "Facebook" | "Instagram" | "Facebook e Instagram",
     "creativeType": "imagen" | "video" | "carrusel" | "texto",
-    "activeFrom": "fecha de inicio si visible, ej: '15 de enero de 2025', o null"
+    "activeFrom": "fecha de inicio visible o null"
   }
 ]
 
-Contexto adicional del DOM (puede ayudar a leer texto):
-${domText.slice(0, 800)}
+Texto del DOM para contexto:
+${domText.slice(0, 600)}
 
-Si la página muestra login requerido, sin resultados, o error — devuelve [].
-SOLO responde con el JSON array, sin markdown.`,
+Si hay pantalla de login, sin resultados o error → devuelve [].
+SOLO el JSON array, sin markdown.`,
                 },
               ],
             },
@@ -174,7 +158,13 @@ SOLO responde con el JSON array, sin markdown.`,
     }
 
     return NextResponse.json({ results });
+  } catch (error: any) {
+    console.error("meta-ads launch error:", error);
+    return NextResponse.json(
+      { error: error.message || "Failed to launch browser" },
+      { status: 500 }
+    );
   } finally {
-    await browser.close();
+    if (browser) await browser.close();
   }
 }

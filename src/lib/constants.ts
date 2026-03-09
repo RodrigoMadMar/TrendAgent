@@ -156,6 +156,7 @@ export interface CompetitorAnalysis {
   competitors: CompetitorSummary[];
   opportunities: CompetitiveOpportunity[];
   summary: string;
+  screenshots?: { competitor: string; platform: string; screenshotB64: string }[];
 }
 
 export interface MetaAd {
