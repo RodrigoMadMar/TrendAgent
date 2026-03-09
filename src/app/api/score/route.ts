@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getClient } from "@/lib/anthropic";
+import { getClient, createWithRetry } from "@/lib/anthropic";
 import { BRAND, type RawTrend } from "@/lib/constants";
 
 export const maxDuration = 60;
@@ -14,9 +14,9 @@ export async function POST(req: NextRequest) {
 
     const client = getClient();
 
-    const response = await client.messages.create({
+    const response = await createWithRetry(() => client.messages.create({
       model: "claude-sonnet-4-6",
-      max_tokens: 8000,
+      max_tokens: 4000,
       system: `Eres un analista senior de Growth Marketing para Blue Express (servicio de envíos y logística de Copec, Chile).
 
 Manual de marca Blue Express:
@@ -78,7 +78,7 @@ Reglas:
 Responde ÚNICAMENTE con el JSON array.`,
         },
       ],
-    });
+    }));
 
     const texts = response.content
       .filter((b) => b.type === "text")
