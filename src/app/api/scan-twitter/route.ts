@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import Anthropic from "@anthropic-ai/sdk";
-import { getClient } from "@/lib/anthropic";
+import { getClient, createWithRetry } from "@/lib/anthropic";
 
 export const maxDuration = 60;
 
@@ -38,16 +38,17 @@ export async function POST() {
   // 2. Fallback: Claude with web_search for real-time X/Twitter Chile trends
   try {
     const client = getClient();
-    const response = await client.messages.create(
-      {
-        model: "claude-sonnet-4-6",
-        max_tokens: 1500,
-        tools: [{ type: "web_search_20250305", name: "web_search" } as any],
-        system: `Eres un asistente especializado en tendencias de redes sociales en Chile. Responde SOLO con JSON válido, sin markdown, sin texto adicional.`,
-        messages: [
-          {
-            role: "user",
-            content: `Busca los trending topics actuales en X (Twitter) Chile de hoy. Usa búsquedas como "trending Chile Twitter hoy" o "tendencias X Chile".
+    const response = await createWithRetry(() =>
+      client.messages.create(
+        {
+          model: "claude-sonnet-4-6",
+          max_tokens: 1500,
+          tools: [{ type: "web_search_20250305", name: "web_search" } as any],
+          system: `Eres un asistente especializado en tendencias de redes sociales en Chile. Responde SOLO con JSON válido, sin markdown, sin texto adicional.`,
+          messages: [
+            {
+              role: "user",
+              content: `Busca los trending topics actuales en X (Twitter) Chile de hoy. Usa búsquedas como "trending Chile Twitter hoy" o "tendencias X Chile".
 
 Devuelve un JSON array con los 15 temas más trending:
 [
@@ -62,10 +63,11 @@ Devuelve un JSON array con los 15 temas más trending:
 
 Categorías posibles: Deportes / Fútbol, Entretenimiento / Farándula, Entretenimiento / TV, Política, Economía, Trending.
 SOLO el JSON array.`,
-          },
-        ],
-      },
-      { headers: { "anthropic-beta": "web-search-2025-03-05" } }
+            },
+          ],
+        },
+        { headers: { "anthropic-beta": "web-search-2025-03-05" } }
+      )
     );
 
     const text = response.content
