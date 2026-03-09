@@ -1,13 +1,9 @@
 import { NextResponse } from "next/server";
-import { chromium } from "playwright-core";
 import { getClient } from "@/lib/anthropic";
 import { BRAND } from "@/lib/constants";
+import { launchBrowser } from "@/lib/browser";
 
 export const maxDuration = 120;
-
-// Set CHROMIUM_EXECUTABLE_PATH env var to override (e.g. for Vercel with @sparticuz/chromium).
-// Otherwise playwright uses its auto-detected path (run `npx playwright install chromium` once).
-const CHROMIUM_PATH = process.env.CHROMIUM_EXECUTABLE_PATH || undefined;
 
 // Instagram and X profiles for the two main competitors
 const PROFILES = [
@@ -20,17 +16,7 @@ const PROFILES = [
 export async function POST() {
   let browser;
   try {
-    browser = await chromium.launch({
-      ...(CHROMIUM_PATH ? { executablePath: CHROMIUM_PATH } : {}),
-      headless: true,
-      args: [
-        "--no-sandbox",
-        "--disable-setuid-sandbox",
-        "--disable-dev-shm-usage",
-        "--disable-gpu",
-        "--disable-extensions",
-      ],
-    });
+    browser = await launchBrowser();
 
     const context = await browser.newContext({
       viewport: { width: 1280, height: 900 },
@@ -84,7 +70,6 @@ export async function POST() {
         screenshots.push({ competitor, platform, screenshotB64: buf.toString("base64") });
       } catch (err: any) {
         console.error(`Screenshot error ${competitor} ${platform}:`, err.message);
-        // Store empty so Claude knows the profile failed
         screenshots.push({ competitor, platform, screenshotB64: "" });
       } finally {
         await page.close();
@@ -146,7 +131,11 @@ Genera EXACTAMENTE este JSON sin markdown ni texto adicional:
     },
     {
       "name": "Starken",
-      ... misma estructura
+      "activityLevel": "...",
+      "mainFocus": "...",
+      "promos": [],
+      "toneShift": null,
+      "posts": []
     }
   ],
   "opportunities": [
