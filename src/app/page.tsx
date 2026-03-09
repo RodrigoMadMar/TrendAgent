@@ -4,7 +4,7 @@ import { useState } from "react";
 import { BRAND, COMPETITORS, TEAM, getTasksForChannel, offsetDate } from "@/lib/constants";
 import type { ScoredTrend, Campaign, CompetitorAnalysis, CompetitorPost, CompetitiveOpportunity, MetaAd, MetaAdsCompetitorResult } from "@/lib/constants";
 
-/* ═══════════════════ API CALLS (to our proxy routes) ═══════════════════ */
+/* ═══════════════════ API CALLS ═══════════════════ */
 
 async function apiScanTwitter(): Promise<any[]> {
   const res = await fetch("/api/scan-twitter", { method: "POST" });
@@ -56,24 +56,39 @@ async function apiCompetitors(): Promise<CompetitorAnalysis> {
   return data;
 }
 
-/* ═══════════════════ SMALL UI COMPONENTS ═══════════════════ */
+/* ═══════════════════ DESIGN TOKENS ═══════════════════ */
 
-const Score = ({ score, label }: { score: number; label: string }) => {
-  const s = typeof score === "number" && !isNaN(score) ? score : 0;
-  const bg = s >= 8.5 ? "#0a2e1a" : s >= 6.5 ? "#1a1a0a" : "#2e0a0a";
-  const tx = s >= 8.5 ? "#34d399" : s >= 6.5 ? "#fbbf24" : "#f87171";
-  const bd = s >= 8.5 ? "#166534" : s >= 6.5 ? "#854d0e" : "#991b1b";
-  return (
-    <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 1, background: bg, border: `1px solid ${bd}`, borderRadius: 6, padding: "4px 0", flex: 1 }}>
-      <span style={{ fontSize: 14, fontWeight: 700, color: tx, fontFamily: "'JetBrains Mono', monospace" }}>{s}</span>
-      <span style={{ fontSize: 7, color: "#888", textTransform: "uppercase", letterSpacing: 0.6, fontWeight: 600 }}>{label}</span>
-    </div>
-  );
+const T = {
+  bg:       "#07090d",
+  surface:  "#0c1018",
+  card:     "#101520",
+  border:   "rgba(255,255,255,0.07)",
+  borderHi: "rgba(255,255,255,0.12)",
+  txt1:     "#e8eaf0",
+  txt2:     "#8b92a5",
+  txt3:     "#454d5e",
+  blue:     "#1d6bf5",
+  blueHi:   "#4d8fff",
+  green:    "#00d68f",
+  orange:   "#f59e0b",
+  red:      "#f87171",
+  twitter:  "#1d9bf0",
+  google:   "#34d399",
+  meta:     "#1877f2",
+  mono:     "'JetBrains Mono', 'Courier New', monospace",
 };
 
-const EffortTag = ({ effort }: { effort: string }) => {
-  const c = { S: { l: "Quick Win", c: "#34d399" }, M: { l: "Medio", c: "#fbbf24" }, L: { l: "Campaña", c: "#f97316" } }[effort] || { l: effort, c: "#888" };
-  return <span style={{ fontSize: 9, fontWeight: 600, color: c.c, background: `${c.c}18`, padding: "2px 7px", borderRadius: 12, border: `1px solid ${c.c}33`, whiteSpace: "nowrap" }}>{c.l}</span>;
+const CHANNEL_STYLES: Record<string, { color: string; icon: string }> = {
+  "Email":              { color: "#a78bfa", icon: "✉️" },
+  "Push":               { color: "#38bdf8", icon: "🔔" },
+  "Push + Email":       { color: "#818cf8", icon: "🔔✉️" },
+  "Instagram Post":     { color: "#f472b6", icon: "📷" },
+  "Instagram Story":    { color: "#fb923c", icon: "📸" },
+  "Instagram + TikTok": { color: "#e879f9", icon: "📲" },
+  "TikTok":             { color: "#2dd4bf", icon: "🎵" },
+  "Paid Social":        { color: "#facc15", icon: "💰" },
+  "SMS":                { color: "#4ade80", icon: "💬" },
+  "Full funnel":        { color: "#f87171", icon: "🎯" },
 };
 
 const COMPETITOR_COLORS: Record<string, string> = {
@@ -82,201 +97,118 @@ const COMPETITOR_COLORS: Record<string, string> = {
   "Correos de Chile": "#003DA5",
 };
 
-const PLATFORM_ICONS: Record<string, string> = {
-  "Instagram": "📷",
-  "X": "𝕏",
-  "TikTok": "🎵",
-};
-
 const URGENCY_COLORS: Record<string, string> = {
   "alta": "#f87171",
-  "media": "#fbbf24",
+  "media": "#f59e0b",
   "baja": "#34d399",
 };
 
-const CHANNEL_STYLES: Record<string, { color: string; icon: string }> = {
-  "Email":                { color: "#a78bfa", icon: "✉️" },
-  "Push":                 { color: "#38bdf8", icon: "🔔" },
-  "Push + Email":         { color: "#818cf8", icon: "🔔✉️" },
-  "Instagram Post":       { color: "#f472b6", icon: "📷" },
-  "Instagram Story":      { color: "#fb923c", icon: "📸" },
-  "Instagram + TikTok":   { color: "#e879f9", icon: "📲" },
-  "TikTok":               { color: "#2dd4bf", icon: "🎵" },
-  "Paid Social":          { color: "#facc15", icon: "💰" },
-  "SMS":                  { color: "#4ade80", icon: "💬" },
-  "Full funnel":          { color: "#f87171", icon: "🎯" },
+/* ═══════════════════ MICRO COMPONENTS ═══════════════════ */
+
+const Dot = ({ color = T.green }: { color?: string }) => (
+  <span style={{ display: "inline-block", width: 6, height: 6, borderRadius: "50%", background: color, boxShadow: `0 0 6px ${color}` }} />
+);
+
+const Label = ({ children }: { children: React.ReactNode }) => (
+  <span style={{ fontSize: 9, fontWeight: 700, color: T.txt3, textTransform: "uppercase", letterSpacing: 1.2, fontFamily: T.mono }}>
+    {children}
+  </span>
+);
+
+const Badge = ({ color, children }: { color: string; children: React.ReactNode }) => (
+  <span style={{
+    fontSize: 9, fontWeight: 700, color,
+    background: `${color}18`, padding: "2px 8px",
+    borderRadius: 4, border: `1px solid ${color}30`,
+    fontFamily: T.mono, whiteSpace: "nowrap",
+  }}>{children}</span>
+);
+
+const ScoreBar = ({ score, label, color }: { score: number; label: string; color: string }) => {
+  const s = typeof score === "number" && !isNaN(score) ? score : 0;
+  return (
+    <div style={{ flex: 1, display: "flex", flexDirection: "column", gap: 3 }}>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+        <Label>{label}</Label>
+        <span style={{ fontSize: 11, fontWeight: 800, color, fontFamily: T.mono }}>{s}</span>
+      </div>
+      <div style={{ height: 3, background: "rgba(255,255,255,0.06)", borderRadius: 2, overflow: "hidden" }}>
+        <div style={{ height: "100%", width: `${s * 10}%`, background: color, borderRadius: 2, transition: "width 0.6s ease" }} />
+      </div>
+    </div>
+  );
+};
+
+const EffortTag = ({ effort }: { effort: string }) => {
+  const c = { S: { l: "Quick Win", c: T.green }, M: { l: "Medio", c: T.orange }, L: { l: "Campaña", c: "#f97316" } }[effort] || { l: effort, c: "#888" };
+  return <Badge color={c.c}>{c.l}</Badge>;
 };
 
 const ChannelTag = ({ channel }: { channel: string }) => {
   const s = CHANNEL_STYLES[channel] || { color: "#888", icon: "📡" };
   return (
-    <span style={{ display: "inline-flex", alignItems: "center", gap: 3, fontSize: 9, fontWeight: 700, color: s.color, background: `${s.color}18`, padding: "2px 7px", borderRadius: 6, border: `1px solid ${s.color}33`, whiteSpace: "nowrap" }}>
-      {s.icon} {channel}
+    <span style={{ display: "inline-flex", alignItems: "center", gap: 3, fontSize: 9, fontWeight: 700, color: s.color, background: `${s.color}18`, padding: "2px 8px", borderRadius: 4, border: `1px solid ${s.color}30`, whiteSpace: "nowrap" }}>
+      {channel}
     </span>
-  );
-};
-
-const Ring = ({ score }: { score: string }) => {
-  const s = parseFloat(score) || 0;
-  return (
-    <div style={{ width: 38, height: 38, borderRadius: "50%", flexShrink: 0, background: `conic-gradient(#0066ff ${(s / 10) * 360}deg, rgba(255,255,255,0.05) 0deg)`, display: "flex", alignItems: "center", justifyContent: "center" }}>
-      <div style={{ width: 30, height: 30, borderRadius: "50%", background: "#111", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 11, fontWeight: 800, color: "#fff", fontFamily: "'JetBrains Mono', monospace" }}>{s}</div>
-    </div>
   );
 };
 
 const VoteBtn = ({ votes, onVote, voted }: { votes: number; onVote: () => void; voted: boolean }) => (
   <button onClick={(e) => { e.stopPropagation(); onVote(); }} style={{
-    display: "flex", alignItems: "center", gap: 4, background: voted ? "rgba(0,102,255,0.15)" : "rgba(255,255,255,0.04)",
-    border: voted ? "1px solid #0066ff" : "1px solid rgba(255,255,255,0.1)", borderRadius: 6, padding: "5px 10px", cursor: "pointer",
-    color: voted ? "#4d94ff" : "#999", fontSize: 12, fontWeight: 600,
+    display: "flex", alignItems: "center", gap: 4,
+    background: voted ? `${T.blue}20` : "rgba(255,255,255,0.03)",
+    border: voted ? `1px solid ${T.blue}60` : `1px solid ${T.border}`,
+    borderRadius: 6, padding: "5px 10px", cursor: "pointer",
+    color: voted ? T.blueHi : T.txt3, fontSize: 11, fontWeight: 700, fontFamily: T.mono,
   }}>
     <span>{voted ? "▲" : "△"}</span><span>{votes + (voted ? 1 : 0)}</span>
   </button>
 );
 
-/* ═══════════════════ COMPETITOR COMPONENTS ═══════════════════ */
-
-function CompetitorPostCard({ post }: { post: CompetitorPost }) {
-  const color = COMPETITOR_COLORS[post.competitor] || "#888";
-  const platformIcon = PLATFORM_ICONS[post.platform] || "📡";
-  const engagementColor = { alto: "#34d399", medio: "#fbbf24", bajo: "#f87171" }[post.engagement] || "#888";
+const AvgRing = ({ avg }: { avg: string }) => {
+  const s = parseFloat(avg) || 0;
+  const color = s >= 8 ? T.green : s >= 6 ? T.orange : T.red;
   return (
-    <div style={{ background: "rgba(255,255,255,0.02)", border: "1px solid rgba(255,255,255,0.06)", borderRadius: 8, padding: 10, marginTop: 6 }}>
-      <div style={{ display: "flex", alignItems: "flex-start", gap: 8 }}>
-        <span style={{ fontSize: 14, flexShrink: 0 }}>{platformIcon}</span>
-        <div style={{ flex: 1, minWidth: 0 }}>
-          <div style={{ display: "flex", gap: 5, flexWrap: "wrap", marginBottom: 4 }}>
-            <span style={{ fontSize: 8, fontWeight: 700, color, background: `${color}18`, padding: "1px 6px", borderRadius: 4, border: `1px solid ${color}33` }}>{post.platform}</span>
-            <span style={{ fontSize: 8, fontWeight: 600, color: "#888", background: "rgba(255,255,255,0.04)", padding: "1px 6px", borderRadius: 4 }}>{post.type}</span>
-            <span style={{ fontSize: 8, fontWeight: 600, color: engagementColor }}>● {post.engagement}</span>
-            <span style={{ fontSize: 8, color: "#555" }}>{post.date}</span>
-          </div>
-          <p style={{ fontSize: 11, color: "#ccc", margin: "0 0 4px", lineHeight: 1.4 }}>{post.summary}</p>
-          {post.copy && <p style={{ fontSize: 10, color: "#888", fontStyle: "italic", margin: "0 0 4px" }}>&quot;{post.copy}&quot;</p>}
-          {post.opportunity && (
-            <div style={{ fontSize: 9, color: "#4d94ff", background: "rgba(0,102,255,0.06)", padding: "4px 8px", borderRadius: 5, border: "1px solid rgba(0,102,255,0.15)", marginTop: 4 }}>
-              💡 {post.opportunity}
-            </div>
-          )}
-        </div>
-      </div>
+    <div style={{
+      width: 44, height: 44, borderRadius: "50%", flexShrink: 0,
+      background: `conic-gradient(${color} ${(s / 10) * 360}deg, rgba(255,255,255,0.04) 0deg)`,
+      display: "flex", alignItems: "center", justifyContent: "center",
+    }}>
+      <div style={{
+        width: 34, height: 34, borderRadius: "50%", background: T.card,
+        display: "flex", alignItems: "center", justifyContent: "center",
+        fontSize: 12, fontWeight: 800, color, fontFamily: T.mono,
+      }}>{s}</div>
     </div>
   );
-}
+};
 
-function OpportunityCard({ opp, onNotion }: { opp: CompetitiveOpportunity; onNotion: () => void }) {
-  const urgencyColor = URGENCY_COLORS[opp.urgency] || "#888";
-  const channelStyle = CHANNEL_STYLES[opp.channel] || { color: "#888", icon: "📡" };
-  return (
-    <div style={{ background: "rgba(0,102,255,0.04)", border: "1px solid rgba(0,102,255,0.12)", borderRadius: 10, padding: 12, marginBottom: 8 }}>
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 8, marginBottom: 6 }}>
-        <div style={{ flex: 1 }}>
-          <div style={{ display: "flex", gap: 5, flexWrap: "wrap", marginBottom: 4 }}>
-            <span style={{ fontSize: 12, fontWeight: 700, color: "#e5e5e5" }}>{opp.title}</span>
-            <span style={{ fontSize: 8, fontWeight: 700, color: urgencyColor, background: `${urgencyColor}18`, padding: "2px 6px", borderRadius: 10, border: `1px solid ${urgencyColor}33` }}>urgencia {opp.urgency}</span>
-          </div>
-          <p style={{ fontSize: 10, color: "#888", margin: "0 0 4px" }}>Trigger: {opp.trigger}</p>
-          <p style={{ fontSize: 11, color: "#aaa", margin: 0, lineHeight: 1.4 }}>{opp.suggestion}</p>
-        </div>
-        <div style={{ flexShrink: 0, display: "flex", flexDirection: "column", gap: 4, alignItems: "flex-end" }}>
-          <span style={{ display: "inline-flex", alignItems: "center", gap: 3, fontSize: 9, fontWeight: 700, color: channelStyle.color, background: `${channelStyle.color}18`, padding: "2px 7px", borderRadius: 6, border: `1px solid ${channelStyle.color}33`, whiteSpace: "nowrap" }}>
-            {channelStyle.icon} {opp.channel}
-          </span>
-          <button onClick={onNotion} style={{ display: "flex", alignItems: "center", gap: 4, padding: "5px 10px", borderRadius: 6, cursor: "pointer", background: "rgba(52,211,153,0.08)", border: "1px solid rgba(52,211,153,0.2)", color: "#34d399", fontSize: 10, fontWeight: 700, whiteSpace: "nowrap" }}>
-            📋 Notion
-          </button>
-        </div>
-      </div>
-    </div>
-  );
-}
+/* ═══════════════════ PANEL WRAPPER ═══════════════════ */
 
-function CompetitorCard({
-  comp,
-  open,
-  toggle,
-  screenshots,
-  onScreenshot,
-}: {
-  comp: any;
-  open: boolean;
-  toggle: () => void;
-  screenshots?: { platform: string; screenshotB64: string }[];
-  onScreenshot?: (b64: string) => void;
+function Panel({ accent, header, children }: {
+  accent: string;
+  header: React.ReactNode;
+  children: React.ReactNode;
 }) {
-  const color = COMPETITOR_COLORS[comp.name] || "#888";
-  const activityColor = { alto: "#34d399", medio: "#fbbf24", bajo: "#f87171" }[comp.activityLevel as string] || "#888";
-  const emoji = { "Chilexpress": "🟠", "Starken": "🔴", "Correos de Chile": "🔵" }[comp.name as string] || "⚫";
   return (
-    <div style={{ background: "rgba(255,255,255,0.03)", border: `1px solid ${color}22`, borderRadius: 12, overflow: "hidden", marginBottom: 10 }}>
-      <div onClick={toggle} style={{ padding: 14, cursor: "pointer" }}>
-        <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-          <div style={{ width: 36, height: 36, borderRadius: 8, flexShrink: 0, background: `${color}18`, border: `1px solid ${color}33`, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 18 }}>{emoji}</div>
-          <div style={{ flex: 1, minWidth: 0 }}>
-            <div style={{ display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap" }}>
-              <span style={{ fontSize: 14, fontWeight: 700, color: "#f0f0f0" }}>{comp.name}</span>
-              <span style={{ fontSize: 8, fontWeight: 700, color: activityColor, background: `${activityColor}18`, padding: "2px 6px", borderRadius: 10, border: `1px solid ${activityColor}33` }}>actividad {comp.activityLevel}</span>
-            </div>
-            <p style={{ fontSize: 11, color: "#999", margin: "2px 0 0", lineHeight: 1.3 }}>{comp.mainFocus}</p>
-          </div>
-          <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-end", gap: 2, flexShrink: 0 }}>
-            <div style={{ display: "flex", gap: 3 }}>
-              {(screenshots || []).map(s => (
-                <span key={s.platform} style={{ fontSize: 7, color: "#555", background: "rgba(255,255,255,0.05)", padding: "1px 4px", borderRadius: 3 }}>{s.platform === "Instagram" ? "IG" : "𝕏"}</span>
-              ))}
-            </div>
-            <span style={{ fontSize: 12, color: "#555", fontFamily: "'JetBrains Mono', monospace", fontWeight: 700 }}>{(comp.posts || []).length} posts</span>
-            <span style={{ color: "#444", fontSize: 12, transition: "transform 0.2s", transform: open ? "rotate(180deg)" : "rotate(0)" }}>▼</span>
-          </div>
-        </div>
-        {comp.promos?.length > 0 && (
-          <div style={{ display: "flex", gap: 4, flexWrap: "wrap", marginTop: 8 }}>
-            {comp.promos.map((p: string, i: number) => (
-              <span key={i} style={{ fontSize: 8, color: "#fbbf24", background: "rgba(251,191,36,0.1)", padding: "2px 6px", borderRadius: 4, border: "1px solid rgba(251,191,36,0.2)" }}>🏷️ {p}</span>
-            ))}
-          </div>
-        )}
+    <div style={{
+      background: T.surface,
+      border: `1px solid ${accent}25`,
+      borderTop: `2px solid ${accent}`,
+      borderRadius: 10,
+      overflow: "hidden",
+      display: "flex",
+      flexDirection: "column",
+    }}>
+      <div style={{
+        padding: "10px 14px",
+        borderBottom: `1px solid ${accent}15`,
+        background: `${accent}06`,
+        display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8,
+      }}>
+        {header}
       </div>
-      {open && (
-        <div style={{ borderTop: "1px solid rgba(255,255,255,0.05)" }}>
-          {/* RRSS screenshot thumbnails */}
-          {(screenshots || []).length > 0 && (
-            <div style={{ display: "grid", gridTemplateColumns: `repeat(${(screenshots || []).length}, 1fr)`, gap: 6, padding: "10px 14px 6px" }}>
-              {(screenshots || []).map(s => (
-                <div key={s.platform} style={{ cursor: "zoom-in" }} onClick={(e) => { e.stopPropagation(); onScreenshot?.(s.screenshotB64); }}>
-                  <div style={{ fontSize: 8, color: "#555", marginBottom: 3, fontWeight: 600 }}>
-                    {s.platform === "Instagram" ? "📸 Instagram" : "𝕏 X / Twitter"}
-                  </div>
-                  <div style={{ position: "relative", overflow: "hidden", borderRadius: 6, border: `1px solid ${color}22` }}>
-                    <img
-                      src={`data:image/jpeg;base64,${s.screenshotB64}`}
-                      alt={`${comp.name} ${s.platform}`}
-                      style={{ width: "100%", display: "block", maxHeight: 120, objectFit: "cover", objectPosition: "top" }}
-                    />
-                    <div style={{ position: "absolute", inset: 0, background: "linear-gradient(to bottom, transparent 60%, rgba(0,0,0,0.4))", display: "flex", alignItems: "flex-end", justifyContent: "flex-end", padding: 4 }}>
-                      <span style={{ fontSize: 7, color: "#fff", background: "rgba(0,0,0,0.5)", padding: "1px 4px", borderRadius: 3 }}>🔍 Ver</span>
-                    </div>
-                  </div>
-                </div>
-              ))}
-            </div>
-          )}
-          <div style={{ padding: "0 14px 14px" }}>
-            {comp.toneShift && (
-              <div style={{ fontSize: 10, color: "#f97316", background: "rgba(249,115,22,0.06)", padding: "6px 10px", borderRadius: 6, border: "1px solid rgba(249,115,22,0.15)", marginBottom: 8 }}>
-                ⚡ Cambio de tono: {comp.toneShift}
-              </div>
-            )}
-            {(comp.posts || []).length === 0 && (
-              <p style={{ fontSize: 11, color: "#555", margin: "0", fontStyle: "italic" }}>Sin publicaciones recientes detectadas.</p>
-            )}
-            {(comp.posts || []).map((post: CompetitorPost, i: number) => (
-              <CompetitorPostCard key={i} post={post} />
-            ))}
-          </div>
-        </div>
-      )}
+      {children}
     </div>
   );
 }
@@ -300,70 +232,77 @@ function NotionModal({ campaign, trend, onClose }: { campaign: Campaign; trend: 
     }
   };
 
+  const inputStyle: React.CSSProperties = {
+    width: "100%", padding: "9px 12px",
+    background: "rgba(255,255,255,0.04)", border: `1px solid ${T.border}`,
+    borderRadius: 7, color: T.txt1, fontSize: 13, outline: "none",
+    boxSizing: "border-box", marginBottom: 12, fontFamily: T.mono,
+  };
+
   return (
-    <div onClick={onClose} style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.75)", zIndex: 1000, display: "flex", alignItems: "center", justifyContent: "center", padding: 16 }}>
-      <div onClick={(e) => e.stopPropagation()} style={{ background: "#141414", border: "1px solid rgba(255,255,255,0.1)", borderRadius: 16, width: "100%", maxWidth: 480, maxHeight: "90vh", overflow: "auto", padding: 24 }}>
-        <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 16 }}>
+    <div onClick={onClose} style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.8)", zIndex: 1000, display: "flex", alignItems: "center", justifyContent: "center", padding: 16 }}>
+      <div onClick={(e) => e.stopPropagation()} style={{ background: T.surface, border: `1px solid ${T.border}`, borderRadius: 14, width: "100%", maxWidth: 480, maxHeight: "90vh", overflow: "auto", padding: 24 }}>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 16 }}>
           <div>
-            <h2 style={{ fontSize: 16, fontWeight: 800, margin: "0 0 2px", color: "#fff" }}>Crear en Notion</h2>
-            <p style={{ fontSize: 10, color: "#4d94ff", margin: 0, fontWeight: 600 }}>Líder de Negocio: Rodrigo Madariaga</p>
+            <h2 style={{ fontSize: 15, fontWeight: 800, margin: "0 0 3px", color: T.txt1 }}>Crear en Notion</h2>
+            <p style={{ fontSize: 10, color: T.blue, margin: 0, fontWeight: 600, fontFamily: T.mono }}>Rodrigo Madariaga · Campaign Lead</p>
           </div>
-          <button onClick={onClose} style={{ background: "none", border: "none", color: "#666", fontSize: 20, cursor: "pointer" }}>✕</button>
+          <button onClick={onClose} style={{ background: "none", border: "none", color: T.txt3, fontSize: 20, cursor: "pointer", lineHeight: 1 }}>✕</button>
         </div>
 
-        <div style={{ background: "rgba(0,102,255,0.05)", border: "1px solid rgba(0,102,255,0.1)", borderRadius: 10, padding: 14, marginBottom: 16 }}>
-          <div style={{ fontSize: 13, fontWeight: 700, color: "#e5e5e5", marginBottom: 4 }}>📦 Blue: {campaign.title}</div>
-          <div style={{ fontSize: 11, color: "#888" }}>Tendencia: {trend.title}</div>
-          <p style={{ fontSize: 11, color: "#aaa", fontStyle: "italic", margin: "6px 0 0" }}>&quot;{campaign.copy}&quot;</p>
+        <div style={{ background: `${T.blue}08`, border: `1px solid ${T.blue}18`, borderRadius: 8, padding: 12, marginBottom: 16 }}>
+          <div style={{ fontSize: 12, fontWeight: 700, color: T.txt1, marginBottom: 3 }}>📦 {campaign.title}</div>
+          <div style={{ fontSize: 10, color: T.txt2 }}>Tendencia: {trend.title}</div>
+          <p style={{ fontSize: 11, color: T.txt2, fontStyle: "italic", margin: "6px 0 0" }}>&quot;{campaign.copy}&quot;</p>
         </div>
 
-        <label style={{ display: "block", fontSize: 11, color: "#888", fontWeight: 600, marginBottom: 5, textTransform: "uppercase" }}>Sprint *</label>
-        <input placeholder="Ej: Sprint 66" value={sprint} onChange={(e) => setSprint(e.target.value)}
-          style={{ width: "100%", padding: "10px 12px", background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.1)", borderRadius: 8, color: "#fff", fontSize: 13, outline: "none", boxSizing: "border-box", marginBottom: 12 }} />
+        <label style={{ display: "block", fontSize: 10, color: T.txt2, fontWeight: 700, marginBottom: 5, textTransform: "uppercase", letterSpacing: 0.8 }}>Sprint *</label>
+        <input placeholder="Ej: Sprint 66" value={sprint} onChange={(e) => setSprint(e.target.value)} style={inputStyle} />
 
-        <label style={{ display: "block", fontSize: 11, color: "#888", fontWeight: 600, marginBottom: 5, textTransform: "uppercase" }}>Fecha de Deploy *</label>
-        <input type="date" value={deploy} onChange={(e) => setDeploy(e.target.value)}
-          style={{ width: "100%", padding: "10px 12px", background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.1)", borderRadius: 8, color: "#fff", fontSize: 13, outline: "none", boxSizing: "border-box", colorScheme: "dark", marginBottom: 16 }} />
+        <label style={{ display: "block", fontSize: 10, color: T.txt2, fontWeight: 700, marginBottom: 5, textTransform: "uppercase", letterSpacing: 0.8 }}>Fecha deploy *</label>
+        <input type="date" value={deploy} onChange={(e) => setDeploy(e.target.value)} style={inputStyle} />
 
-        <div style={{ fontSize: 10, color: "#555", textTransform: "uppercase", letterSpacing: 1, fontWeight: 700, marginBottom: 6 }}>Tareas ({tasks.length})</div>
-        {tasks.map((t, i) => (
-          <div key={i} style={{ display: "flex", justifyContent: "space-between", padding: "5px 0", borderBottom: "1px solid rgba(255,255,255,0.04)" }}>
-            <span style={{ fontSize: 12, color: "#ccc" }}>{t.name} <span style={{ color: "#666" }}>→ {TEAM[t.ownerKey].name}</span></span>
-            <span style={{ fontSize: 10, color: deploy ? "#4d94ff" : "#444", fontFamily: "'JetBrains Mono', monospace" }}>{deploy ? offsetDate(deploy, t.offsetDays) : "—"}</span>
+        {tasks.length > 0 && status === "idle" && (
+          <div style={{ background: "rgba(255,255,255,0.02)", borderRadius: 7, padding: 10, marginBottom: 14, border: `1px solid ${T.border}` }}>
+            <Label>Tareas a crear ({tasks.length})</Label>
+            {tasks.map((task, i) => (
+              <div key={i} style={{ display: "flex", alignItems: "center", gap: 8, padding: "5px 0", borderBottom: i < tasks.length - 1 ? `1px solid ${T.border}` : "none" }}>
+                <span style={{ fontSize: 10, color: T.txt2, flex: 1 }}>{task.name}</span>
+                <span style={{ fontSize: 9, color: T.txt3, fontFamily: T.mono }}>{task.ownerKey}</span>
+                <span style={{ fontSize: 9, color: T.txt3, fontFamily: T.mono }}>{deploy ? offsetDate(deploy, task.offsetDays) : `+${task.offsetDays}d`}</span>
+              </div>
+            ))}
           </div>
-        ))}
+        )}
 
-        <div style={{ marginTop: 16 }}>
-          {status === "idle" && (
-            <button onClick={go} disabled={!sprint || !deploy} style={{
-              width: "100%", padding: 12, borderRadius: 10, border: "none",
-              cursor: sprint && deploy ? "pointer" : "not-allowed",
-              background: sprint && deploy ? "linear-gradient(135deg, #0044cc, #0066ff)" : "rgba(255,255,255,0.05)",
-              color: sprint && deploy ? "#fff" : "#555", fontSize: 14, fontWeight: 700,
-            }}>🚀 Crear campaña + {tasks.length} tareas</button>
-          )}
-          {status === "loading" && (
-            <div style={{ textAlign: "center", padding: 16 }}>
-              <div style={{ fontSize: 20, animation: "spin 1s linear infinite" }}>⏳</div>
-              <div style={{ fontSize: 12, color: "#888", marginTop: 6 }}>Creando en Notion...</div>
-              <style>{`@keyframes spin{from{transform:rotate(0)}to{transform:rotate(360deg)}}`}</style>
-            </div>
-          )}
-          {status === "success" && (
-            <div style={{ textAlign: "center", padding: 16 }}>
-              <div style={{ fontSize: 28 }}>✅</div>
-              <div style={{ fontSize: 14, fontWeight: 700, color: "#34d399", marginTop: 4 }}>Creado en Notion</div>
-              <button onClick={onClose} style={{ marginTop: 10, padding: "8px 24px", borderRadius: 8, border: "1px solid rgba(255,255,255,0.1)", background: "rgba(255,255,255,0.05)", color: "#ccc", fontSize: 12, cursor: "pointer" }}>Cerrar</button>
-            </div>
-          )}
-          {status === "error" && (
-            <div style={{ textAlign: "center", padding: 16 }}>
-              <div style={{ fontSize: 28 }}>⚠️</div>
-              <div style={{ fontSize: 13, color: "#f87171", marginTop: 4 }}>Error al crear</div>
-              <button onClick={() => setStatus("idle")} style={{ marginTop: 10, padding: "8px 20px", borderRadius: 8, border: "1px solid rgba(255,255,255,0.1)", background: "rgba(255,255,255,0.05)", color: "#ccc", fontSize: 12, cursor: "pointer" }}>Reintentar</button>
-            </div>
-          )}
-        </div>
+        {status === "idle" && (
+          <button onClick={go} disabled={!sprint || !deploy} style={{
+            width: "100%", padding: "11px", borderRadius: 8, border: "none",
+            background: sprint && deploy ? T.blue : "rgba(255,255,255,0.05)",
+            color: sprint && deploy ? "#fff" : T.txt3,
+            fontSize: 13, fontWeight: 700, cursor: sprint && deploy ? "pointer" : "not-allowed",
+          }}>Crear Campaña + Tareas</button>
+        )}
+        {status === "loading" && (
+          <div style={{ textAlign: "center", padding: 16 }}>
+            <div style={{ fontSize: 24, marginBottom: 6 }}>⏳</div>
+            <div style={{ fontSize: 12, color: T.blue, fontWeight: 600 }}>Creando en Notion vía Claude MCP...</div>
+          </div>
+        )}
+        {status === "success" && (
+          <div style={{ textAlign: "center", padding: 16 }}>
+            <div style={{ fontSize: 24, marginBottom: 6 }}>✅</div>
+            <div style={{ fontSize: 13, fontWeight: 700, color: T.green }}>Creado en Notion</div>
+            <button onClick={onClose} style={{ marginTop: 10, padding: "7px 20px", borderRadius: 7, border: `1px solid ${T.border}`, background: "rgba(255,255,255,0.04)", color: T.txt2, fontSize: 11, cursor: "pointer" }}>Cerrar</button>
+          </div>
+        )}
+        {status === "error" && (
+          <div style={{ textAlign: "center", padding: 16 }}>
+            <div style={{ fontSize: 24, marginBottom: 6 }}>⚠️</div>
+            <div style={{ fontSize: 12, color: T.red }}>Error al crear</div>
+            <button onClick={() => setStatus("idle")} style={{ marginTop: 10, padding: "7px 20px", borderRadius: 7, border: `1px solid ${T.border}`, background: "rgba(255,255,255,0.04)", color: T.txt2, fontSize: 11, cursor: "pointer" }}>Reintentar</button>
+          </div>
+        )}
       </div>
     </div>
   );
@@ -375,24 +314,26 @@ function CampaignCard({ c, trend, voted, onVote, onCreate }: {
   c: Campaign; trend: ScoredTrend; voted: boolean; onVote: () => void; onCreate: (c: Campaign, t: ScoredTrend) => void;
 }) {
   return (
-    <div style={{ background: "rgba(255,255,255,0.02)", border: "1px solid rgba(255,255,255,0.06)", borderRadius: 8, padding: 12, marginTop: 8 }}>
+    <div style={{ background: T.card, border: `1px solid ${T.border}`, borderRadius: 8, padding: "10px 12px", marginTop: 8 }}>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 8 }}>
         <div style={{ flex: 1, minWidth: 0 }}>
           <div style={{ display: "flex", alignItems: "center", gap: 5, marginBottom: 5, flexWrap: "wrap" }}>
-            <span style={{ fontWeight: 700, fontSize: 12, color: "#e5e5e5" }}>{c.title}</span>
+            <span style={{ fontWeight: 700, fontSize: 12, color: T.txt1 }}>{c.title}</span>
             <ChannelTag channel={c.channel} />
           </div>
-          <p style={{ fontSize: 11, color: "#aaa", lineHeight: 1.5, margin: "0 0 6px", fontStyle: "italic" }}>&quot;{c.copy}&quot;</p>
+          <p style={{ fontSize: 11, color: T.txt2, margin: "0 0 4px", lineHeight: 1.45, fontStyle: "italic" }}>&quot;{c.copy}&quot;</p>
           <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-            <span style={{ fontSize: 9, color: "#0066ff", fontWeight: 700, background: "rgba(0,102,255,0.08)", padding: "2px 6px", borderRadius: 4 }}>{c.cta}</span>
-            <span style={{ fontSize: 9, color: "#666" }}>📡 {c.estimatedReach}</span>
+            {c.cta && <span style={{ fontSize: 9, fontWeight: 700, color: T.blue, background: `${T.blue}12`, padding: "2px 8px", borderRadius: 4 }}>CTA: {c.cta}</span>}
+            {c.estimatedReach && <span style={{ fontSize: 9, color: T.txt3, fontFamily: T.mono }}>≈{c.estimatedReach}</span>}
           </div>
         </div>
-        <div style={{ display: "flex", flexDirection: "column", gap: 6, flexShrink: 0 }}>
+        <div style={{ display: "flex", flexDirection: "column", gap: 5, flexShrink: 0 }}>
           <VoteBtn votes={c.votes} onVote={onVote} voted={voted} />
           <button onClick={(e) => { e.stopPropagation(); onCreate(c, trend); }} style={{
-            display: "flex", alignItems: "center", gap: 4, padding: "5px 10px", borderRadius: 6, cursor: "pointer",
-            background: "rgba(52,211,153,0.08)", border: "1px solid rgba(52,211,153,0.2)", color: "#34d399", fontSize: 10, fontWeight: 700, whiteSpace: "nowrap",
+            display: "flex", alignItems: "center", justifyContent: "center", gap: 4,
+            padding: "5px 10px", borderRadius: 6, cursor: "pointer",
+            background: `${T.green}0d`, border: `1px solid ${T.green}30`,
+            color: T.green, fontSize: 9, fontWeight: 700, whiteSpace: "nowrap",
           }}>📋 Notion</button>
         </div>
       </div>
@@ -406,47 +347,49 @@ function TrendCard({ t, open, toggle, votes, onVote, onCreate }: {
   t: ScoredTrend; open: boolean; toggle: () => void; votes: Set<string>; onVote: (id: string) => void; onCreate: (c: Campaign, t: ScoredTrend) => void;
 }) {
   const avg = (((t.relevanceScore || 0) + (t.viralScore || 0) + (t.brandFitScore || 0)) / 3).toFixed(1);
+  const avgNum = parseFloat(avg);
+  const borderColor = avgNum >= 8 ? T.green : avgNum >= 6 ? T.orange : T.red;
+
   return (
-    <div style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.07)", borderRadius: 12, overflow: "hidden", marginBottom: 10, boxShadow: open ? "0 4px 20px rgba(0,0,0,0.3)" : "none" }}>
-      <div onClick={toggle} style={{ padding: 14, cursor: "pointer" }}>
-        <div style={{ display: "flex", alignItems: "flex-start", gap: 10, marginBottom: 8 }}>
-          <div style={{ width: 36, height: 36, borderRadius: 8, flexShrink: 0, background: "rgba(0,102,255,0.1)", border: "1px solid rgba(0,102,255,0.2)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 16 }}>{t.sourceIcon || "📡"}</div>
+    <div style={{
+      background: T.card, borderRadius: 8, overflow: "hidden", marginBottom: 8,
+      border: `1px solid ${T.border}`,
+      borderLeft: `3px solid ${borderColor}`,
+      boxShadow: open ? "0 4px 24px rgba(0,0,0,0.35)" : "none",
+    }}>
+      <div onClick={toggle} style={{ padding: "11px 12px", cursor: "pointer" }}>
+        <div style={{ display: "flex", alignItems: "flex-start", gap: 10 }}>
+          <AvgRing avg={avg} />
           <div style={{ flex: 1, minWidth: 0 }}>
-            <h3 style={{ fontSize: 14, fontWeight: 700, color: "#f0f0f0", margin: "0 0 4px", lineHeight: 1.25 }}>{t.title}</h3>
+            <h3 style={{ fontSize: 13, fontWeight: 700, color: T.txt1, margin: "0 0 4px", lineHeight: 1.25 }}>{t.title}</h3>
             <div style={{ display: "flex", alignItems: "center", gap: 5, flexWrap: "wrap" }}>
               <EffortTag effort={t.effort || "M"} />
-              {t.source === "Google Trends" && (
-                <span style={{ fontSize: 8, fontWeight: 700, color: "#34d399", background: "rgba(52,211,153,0.12)", padding: "2px 6px", borderRadius: 10, border: "1px solid rgba(52,211,153,0.25)", whiteSpace: "nowrap" }}>Búsqueda activa</span>
-              )}
-              <span style={{ fontSize: 9, color: "#666" }}>{t.source} · {t.timestamp}</span>
+              {t.source === "Google Trends" && <Badge color={T.google}>Búsqueda activa</Badge>}
+              <span style={{ fontSize: 9, color: T.txt3, fontFamily: T.mono }}>{t.timingWindow}</span>
+              <span style={{ fontSize: 9, color: T.txt3 }}>{t.timestamp}</span>
             </div>
           </div>
-          <div style={{ display: "flex", alignItems: "center", gap: 6, flexShrink: 0 }}>
-            <Ring score={avg} />
-            <span style={{ color: "#444", fontSize: 12, transition: "transform 0.2s", transform: open ? "rotate(180deg)" : "rotate(0)" }}>▼</span>
+          <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-end", gap: 3, flexShrink: 0 }}>
+            <span style={{ fontSize: 10, color: T.txt3, fontFamily: T.mono }}>🔥 {((t.volume || 0) / 1000).toFixed(1)}K</span>
+            <span style={{ fontSize: 10, color: T.green, fontWeight: 700, fontFamily: T.mono }}>{t.velocity}</span>
+            <span style={{ color: T.txt3, fontSize: 10, transform: open ? "rotate(180deg)" : "rotate(0)", transition: "0.2s" }}>▾</span>
           </div>
         </div>
-        <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-          <div style={{ display: "flex", gap: 4, flex: 1 }}>
-            <Score score={t.relevanceScore} label="Relev." />
-            <Score score={t.viralScore} label="Viral" />
-            <Score score={t.brandFitScore} label="Brand" />
-          </div>
-          <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-end", gap: 2, flexShrink: 0 }}>
-            <span style={{ fontSize: 10, color: "#888" }}>🔥 {((t.volume || 0) / 1000).toFixed(1)}K</span>
-            <span style={{ fontSize: 11, color: "#34d399", fontWeight: 700 }}>{t.velocity}</span>
-          </div>
+        <div style={{ display: "flex", gap: 8, marginTop: 8 }}>
+          <ScoreBar score={t.relevanceScore} label="Relev" color={T.blue} />
+          <ScoreBar score={t.viralScore} label="Viral" color={T.orange} />
+          <ScoreBar score={t.brandFitScore} label="Brand" color={T.green} />
         </div>
       </div>
       {open && (
-        <div style={{ padding: "0 14px 14px", borderTop: "1px solid rgba(255,255,255,0.05)" }}>
-          <p style={{ fontSize: 11, color: "#999", lineHeight: 1.55, margin: "10px 0" }}>{t.summary}</p>
-          <div style={{ display: "flex", alignItems: "center", gap: 6, padding: "7px 10px", background: "rgba(0,102,255,0.05)", borderRadius: 7, border: "1px solid rgba(0,102,255,0.1)", marginBottom: 10 }}>
-            <span style={{ fontSize: 11 }}>⏱️</span>
-            <span style={{ fontSize: 10, color: "#4d94ff", fontWeight: 600 }}>Ventana: {t.timingWindow}</span>
-            <span style={{ fontSize: 10, color: "#666" }}>· {(t.campaigns || []).length} propuestas</span>
+        <div style={{ padding: "0 12px 12px", borderTop: `1px solid ${T.border}` }}>
+          <p style={{ fontSize: 11, color: T.txt2, lineHeight: 1.55, margin: "10px 0 10px" }}>{t.summary}</p>
+          <div style={{ display: "flex", alignItems: "center", gap: 6, padding: "6px 10px", background: `${T.blue}08`, borderRadius: 6, border: `1px solid ${T.blue}15`, marginBottom: 10 }}>
+            <span style={{ fontSize: 10 }}>⏱</span>
+            <span style={{ fontSize: 10, color: T.blueHi, fontWeight: 600 }}>Ventana: {t.timingWindow}</span>
+            <span style={{ fontSize: 10, color: T.txt3 }}>· {(t.campaigns || []).length} propuestas</span>
           </div>
-          <div style={{ fontSize: 9, color: "#555", textTransform: "uppercase", letterSpacing: 1, fontWeight: 700, marginBottom: 4 }}>Propuestas de Campaña</div>
+          <Label>Propuestas de Campaña</Label>
           {(t.campaigns || []).map((c) => (
             <CampaignCard key={c.id} c={c} trend={t} voted={votes.has(c.id)} onVote={() => onVote(c.id)} onCreate={onCreate} />
           ))}
@@ -456,19 +399,212 @@ function TrendCard({ t, open, toggle, votes, onVote, onCreate }: {
   );
 }
 
-/* ═══════════════════ MAIN PAGE ═══════════════════ */
+/* ═══════════════════ COMPETITOR COMPONENTS ═══════════════════ */
+
+function CompetitorPostCard({ post }: { post: CompetitorPost }) {
+  const color = COMPETITOR_COLORS[post.competitor] || "#888";
+  const PLATFORM_ICONS: Record<string, string> = { "Facebook": "📘", "Instagram": "📷", "X": "𝕏" };
+  const engColor = { alto: T.green, medio: T.orange, bajo: T.red }[post.engagement] || "#888";
+  return (
+    <div style={{ background: "rgba(255,255,255,0.02)", border: `1px solid ${T.border}`, borderRadius: 7, padding: "9px 10px", marginTop: 6 }}>
+      <div style={{ display: "flex", alignItems: "flex-start", gap: 8 }}>
+        <span style={{ fontSize: 13, flexShrink: 0 }}>{PLATFORM_ICONS[post.platform] || "📡"}</span>
+        <div style={{ flex: 1, minWidth: 0 }}>
+          <div style={{ display: "flex", gap: 5, flexWrap: "wrap", marginBottom: 4 }}>
+            <Badge color={color}>{post.platform}</Badge>
+            <Badge color={T.txt3}>{post.type}</Badge>
+            <span style={{ fontSize: 8, fontWeight: 700, color: engColor, fontFamily: T.mono }}>● {post.engagement}</span>
+            <span style={{ fontSize: 8, color: T.txt3 }}>{post.date}</span>
+          </div>
+          <p style={{ fontSize: 11, color: T.txt2, margin: "0 0 4px", lineHeight: 1.4 }}>{post.summary}</p>
+          {post.copy && <p style={{ fontSize: 10, color: T.txt3, fontStyle: "italic", margin: "0 0 4px" }}>&quot;{post.copy}&quot;</p>}
+          {post.opportunity && (
+            <div style={{ fontSize: 9, color: T.blueHi, background: `${T.blue}08`, padding: "4px 8px", borderRadius: 5, border: `1px solid ${T.blue}18`, marginTop: 4 }}>
+              💡 {post.opportunity}
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function OpportunityCard({ opp, onNotion }: { opp: CompetitiveOpportunity; onNotion: () => void }) {
+  const urgencyColor = URGENCY_COLORS[opp.urgency] || "#888";
+  return (
+    <div style={{ background: T.card, border: `1px solid ${T.blue}18`, borderLeft: `3px solid ${urgencyColor}`, borderRadius: 8, padding: "10px 12px", marginBottom: 8 }}>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 8 }}>
+        <div style={{ flex: 1 }}>
+          <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginBottom: 4, alignItems: "center" }}>
+            <span style={{ fontSize: 12, fontWeight: 700, color: T.txt1 }}>{opp.title}</span>
+            <Badge color={urgencyColor}>urgencia {opp.urgency}</Badge>
+          </div>
+          <p style={{ fontSize: 10, color: T.txt3, margin: "0 0 3px", fontFamily: T.mono }}>trigger: {opp.trigger}</p>
+          <p style={{ fontSize: 11, color: T.txt2, margin: 0, lineHeight: 1.4 }}>{opp.suggestion}</p>
+        </div>
+        <div style={{ flexShrink: 0, display: "flex", flexDirection: "column", gap: 5, alignItems: "flex-end" }}>
+          <ChannelTag channel={opp.channel} />
+          <button onClick={onNotion} style={{ display: "flex", alignItems: "center", gap: 4, padding: "5px 10px", borderRadius: 6, cursor: "pointer", background: `${T.green}0d`, border: `1px solid ${T.green}30`, color: T.green, fontSize: 9, fontWeight: 700 }}>
+            📋 Notion
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function CompetitorCard({ comp, open, toggle, screenshots, onScreenshot }: {
+  comp: any; open: boolean; toggle: () => void;
+  screenshots?: { platform: string; screenshotB64: string }[];
+  onScreenshot?: (b64: string) => void;
+}) {
+  const color = COMPETITOR_COLORS[comp.name] || "#888";
+  const activityColor = { alto: T.green, medio: T.orange, bajo: T.red }[comp.activityLevel as string] || "#888";
+  return (
+    <div style={{ background: T.card, border: `1px solid ${color}25`, borderRadius: 9, overflow: "hidden", marginBottom: 10 }}>
+      <div onClick={toggle} style={{ padding: "11px 13px", cursor: "pointer" }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+          <div style={{ width: 34, height: 34, borderRadius: 7, flexShrink: 0, background: `${color}15`, border: `1px solid ${color}30`, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 16 }}>
+            {comp.name === "Chilexpress" ? "🟠" : comp.name === "Starken" ? "🔴" : "🔵"}
+          </div>
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap", marginBottom: 2 }}>
+              <span style={{ fontSize: 13, fontWeight: 700, color: T.txt1 }}>{comp.name}</span>
+              <Badge color={activityColor}>actividad {comp.activityLevel}</Badge>
+            </div>
+            <p style={{ fontSize: 10, color: T.txt2, margin: 0, lineHeight: 1.3 }}>{comp.mainFocus}</p>
+          </div>
+          <div style={{ flexShrink: 0, textAlign: "right" }}>
+            <div style={{ fontSize: 11, fontWeight: 700, color: T.txt3, fontFamily: T.mono }}>{(comp.posts || []).length} posts</div>
+            <span style={{ color: T.txt3, fontSize: 10, transform: open ? "rotate(180deg)" : "rotate(0)", display: "block", transition: "0.2s" }}>▾</span>
+          </div>
+        </div>
+        {comp.promos?.length > 0 && (
+          <div style={{ display: "flex", gap: 4, flexWrap: "wrap", marginTop: 7 }}>
+            {comp.promos.map((p: string, i: number) => (
+              <Badge key={i} color={T.orange}>🏷 {p}</Badge>
+            ))}
+          </div>
+        )}
+      </div>
+      {open && (
+        <div style={{ borderTop: `1px solid ${T.border}` }}>
+          {(screenshots || []).length > 0 && (
+            <div style={{ display: "grid", gridTemplateColumns: `repeat(${(screenshots || []).length}, 1fr)`, gap: 6, padding: "10px 13px 6px" }}>
+              {(screenshots || []).map(s => (
+                <div key={s.platform} style={{ cursor: "zoom-in" }} onClick={(e) => { e.stopPropagation(); onScreenshot?.(s.screenshotB64); }}>
+                  <div style={{ fontSize: 8, color: T.txt3, marginBottom: 3, fontWeight: 600 }}>📘 Facebook</div>
+                  <div style={{ position: "relative", overflow: "hidden", borderRadius: 6, border: `1px solid ${color}20` }}>
+                    <img src={`data:image/jpeg;base64,${s.screenshotB64}`} alt={`${comp.name} ${s.platform}`}
+                      style={{ width: "100%", display: "block", maxHeight: 120, objectFit: "cover", objectPosition: "top" }} />
+                    <div style={{ position: "absolute", inset: 0, background: "linear-gradient(to bottom, transparent 60%, rgba(0,0,0,0.5))", display: "flex", alignItems: "flex-end", justifyContent: "flex-end", padding: 4 }}>
+                      <span style={{ fontSize: 7, color: "#fff", background: "rgba(0,0,0,0.6)", padding: "1px 5px", borderRadius: 3 }}>🔍 Ver</span>
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+          <div style={{ padding: "0 13px 13px" }}>
+            {comp.toneShift && (
+              <div style={{ fontSize: 10, color: "#f97316", background: "rgba(249,115,22,0.06)", padding: "6px 10px", borderRadius: 6, border: "1px solid rgba(249,115,22,0.15)", marginBottom: 8 }}>
+                ⚡ Cambio de tono: {comp.toneShift}
+              </div>
+            )}
+            {(comp.posts || []).length === 0 && (
+              <p style={{ fontSize: 11, color: T.txt3, margin: 0, fontStyle: "italic" }}>Sin publicaciones recientes detectadas.</p>
+            )}
+            {(comp.posts || []).map((post: CompetitorPost, i: number) => (
+              <CompetitorPostCard key={i} post={post} />
+            ))}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+/* ═══════════════════ TREND PANEL ═══════════════════ */
+
+function TrendPanel({
+  title, icon, accent, subtitle,
+  phase, msg, trends, expanded, votes,
+  onScan, onToggle, onVote, onCreate,
+}: {
+  title: string; icon: string; accent: string; subtitle: string;
+  phase: string; msg: string;
+  trends: ScoredTrend[]; expanded: number | null; votes: Set<string>;
+  onScan: () => void;
+  onToggle: (id: number) => void;
+  onVote: (id: string) => void;
+  onCreate: (c: Campaign, t: ScoredTrend) => void;
+}) {
+  const isLoading = phase === "fetching" || phase === "scoring";
+  const btnLabel = phase === "idle" ? "Escanear" : isLoading ? (phase === "fetching" ? "📡 Buscando..." : "🧠 Scoring...") : phase === "error" ? "🔄 Reintentar" : "🔄 Actualizar";
+
+  return (
+    <Panel accent={accent} header={
+      <>
+        <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+          {phase === "done" && <Dot color={accent} />}
+          <div>
+            <div style={{ fontSize: 13, fontWeight: 800, color: T.txt1 }}>{icon} {title}</div>
+            <div style={{ fontSize: 9, color: T.txt3, fontFamily: T.mono }}>{subtitle}</div>
+          </div>
+        </div>
+        <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+          {phase === "done" && <span style={{ fontSize: 9, color: accent, fontFamily: T.mono, fontWeight: 700 }}>{msg}</span>}
+          {phase === "error" && <span style={{ fontSize: 9, color: T.red }}>{msg.slice(0, 40)}</span>}
+          <button onClick={onScan} disabled={isLoading} style={{
+            padding: "5px 12px", borderRadius: 7, fontSize: 10, fontWeight: 700,
+            cursor: isLoading ? "not-allowed" : "pointer",
+            background: isLoading ? "rgba(255,255,255,0.03)" : `${accent}15`,
+            border: `1px solid ${isLoading ? T.border : accent + "40"}`,
+            color: isLoading ? T.txt3 : accent, whiteSpace: "nowrap",
+          }}>{btnLabel}</button>
+        </div>
+      </>
+    }>
+      <div style={{ padding: trends.length > 0 ? "10px" : "0" }}>
+        {phase === "idle" && (
+          <div style={{ textAlign: "center", padding: "32px 20px" }}>
+            <div style={{ fontSize: 30, marginBottom: 8, opacity: 0.3 }}>{icon}</div>
+            <div style={{ fontSize: 12, fontWeight: 700, color: T.txt3 }}>{title}</div>
+            <div style={{ fontSize: 10, color: T.txt3, marginTop: 3 }}>{subtitle}</div>
+          </div>
+        )}
+        {isLoading && (
+          <div style={{ textAlign: "center", padding: "32px 20px" }}>
+            <style>{`@keyframes pulse{0%,100%{opacity:1}50%{opacity:0.4}}`}</style>
+            <div style={{ fontSize: 28, marginBottom: 8, animation: "pulse 1.5s ease-in-out infinite" }}>{phase === "fetching" ? "📡" : "🧠"}</div>
+            <div style={{ fontSize: 11, fontWeight: 700, color: accent }}>{phase === "fetching" ? "Obteniendo datos en tiempo real..." : "Analizando con Claude AI..."}</div>
+          </div>
+        )}
+        {phase === "done" && trends.map((t) => (
+          <TrendCard key={t.id} t={t} open={expanded === t.id} toggle={() => onToggle(t.id)} votes={votes} onVote={onVote} onCreate={onCreate} />
+        ))}
+        {phase === "error" && (
+          <div style={{ textAlign: "center", padding: "24px 20px" }}>
+            <div style={{ fontSize: 11, color: T.red, marginBottom: 6 }}>⚠ {msg}</div>
+            <button onClick={onScan} style={{ padding: "6px 16px", borderRadius: 7, border: `1px solid ${T.red}30`, background: `${T.red}0d`, color: T.red, fontSize: 11, cursor: "pointer" }}>Reintentar</button>
+          </div>
+        )}
+      </div>
+    </Panel>
+  );
+}
+
+/* ═══════════════════ MAIN DASHBOARD ═══════════════════ */
 
 export default function Dashboard() {
   const [activeTab, setActiveTab] = useState<"tendencias" | "competencia">("tendencias");
 
-  // Twitter/X trends state
   const [twitterTrends, setTwitterTrends] = useState<ScoredTrend[]>([]);
   const [twitterPhase, setTwitterPhase] = useState<"idle" | "fetching" | "scoring" | "done" | "error">("idle");
   const [twitterMsg, setTwitterMsg] = useState("");
   const [twitterExpanded, setTwitterExpanded] = useState<number | null>(null);
   const [twitterVotes, setTwitterVotes] = useState<Set<string>>(new Set());
 
-  // Google Trends state
   const [googleTrends, setGoogleTrends] = useState<ScoredTrend[]>([]);
   const [googlePhase, setGooglePhase] = useState<"idle" | "fetching" | "scoring" | "done" | "error">("idle");
   const [googleMsg, setGoogleMsg] = useState("");
@@ -477,53 +613,59 @@ export default function Dashboard() {
 
   const [modal, setModal] = useState<{ campaign: Campaign; trend: ScoredTrend } | null>(null);
 
-  // Competencia state
   const [compData, setCompData] = useState<CompetitorAnalysis | null>(null);
   const [compPhase, setCompPhase] = useState<"idle" | "fetching" | "analyzing" | "done" | "error">("idle");
   const [compMsg, setCompMsg] = useState("");
   const [compExpanded, setCompExpanded] = useState<string | null>(null);
+  const [compScreenshot, setCompScreenshot] = useState<string | null>(null);
 
-  // Meta Ads state
   const [metaAds, setMetaAds] = useState<MetaAdsCompetitorResult[]>([]);
   const [metaPhase, setMetaPhase] = useState<"idle" | "fetching" | "done" | "error">("idle");
   const [metaMsg, setMetaMsg] = useState("");
   const [metaScreenshot, setMetaScreenshot] = useState<string | null>(null);
 
-  // Competitor screenshots lightbox
-  const [compScreenshot, setCompScreenshot] = useState<string | null>(null);
-
-
-  const scanCompetitors = async () => {
-    setCompPhase("fetching");
-    setCompMsg("Escaneando competidores con IA...");
-    setCompData(null);
+  const scanTwitter = async () => {
+    setTwitterPhase("fetching"); setTwitterMsg(""); setTwitterTrends([]);
     try {
-      const analysis = await apiCompetitors();
-      setCompData(analysis);
-      setCompPhase("done");
-      const postCount = (analysis.competitors || []).reduce((a: number, c: any) => a + (c.posts || []).length, 0);
-      setCompMsg(`${postCount} publicaciones detectadas`);
-    } catch (e: any) {
-      setCompPhase("error");
-      setCompMsg(e.message || "Error desconocido");
-    }
+      const raw = await apiScanTwitter();
+      if (!raw.length) { setTwitterPhase("error"); setTwitterMsg("Sin tendencias encontradas"); return; }
+      setTwitterPhase("scoring"); setTwitterMsg(`${raw.length} trends → scoring...`);
+      const scored = await apiScore(raw);
+      setTwitterTrends(sortByScore(scored));
+      setTwitterPhase("done"); setTwitterMsg(`${scored.length} tendencias`);
+    } catch (e: any) { setTwitterPhase("error"); setTwitterMsg(e.message || "Error"); }
+  };
+
+  const scanGoogle = async () => {
+    setGooglePhase("fetching"); setGoogleMsg(""); setGoogleTrends([]);
+    try {
+      const raw = await apiScanGoogle();
+      if (!raw.length) { setGooglePhase("error"); setGoogleMsg("Sin datos de Google Trends"); return; }
+      setGooglePhase("scoring"); setGoogleMsg(`${raw.length} trends → scoring...`);
+      const scored = await apiScore(raw);
+      setGoogleTrends(sortByScore(scored));
+      setGooglePhase("done"); setGoogleMsg(`${scored.length} búsquedas`);
+    } catch (e: any) { setGooglePhase("error"); setGoogleMsg(e.message || "Error"); }
   };
 
   const scanMetaAds = async () => {
-    setMetaPhase("fetching");
-    setMetaMsg("Abriendo Meta Ads Library con Playwright...");
-    setMetaAds([]);
-    setMetaScreenshot(null);
+    setMetaPhase("fetching"); setMetaMsg("Abriendo Meta Ads Library..."); setMetaAds([]); setMetaScreenshot(null);
     try {
       const results = await apiMetaAds();
-      setMetaAds(results);
-      setMetaPhase("done");
+      setMetaAds(results); setMetaPhase("done");
       const total = results.reduce((a, r) => a + r.ads.length, 0);
       setMetaMsg(`${total} anuncios detectados`);
-    } catch (e: any) {
-      setMetaPhase("error");
-      setMetaMsg(e.message || "Error al escanear Meta Ads");
-    }
+    } catch (e: any) { setMetaPhase("error"); setMetaMsg(e.message || "Error"); }
+  };
+
+  const scanCompetitors = async () => {
+    setCompPhase("fetching"); setCompMsg("Escaneando Facebook + IA..."); setCompData(null);
+    try {
+      const analysis = await apiCompetitors();
+      setCompData(analysis); setCompPhase("done");
+      const postCount = (analysis.competitors || []).reduce((a: number, c: any) => a + (c.posts || []).length, 0);
+      setCompMsg(`${postCount} publicaciones detectadas`);
+    } catch (e: any) { setCompPhase("error"); setCompMsg(e.message || "Error"); }
   };
 
   const oppToNotion = (opp: CompetitiveOpportunity): { campaign: Campaign; trend: ScoredTrend } => ({
@@ -531,358 +673,240 @@ export default function Dashboard() {
     trend: { id: 0, title: `Competencia: ${opp.trigger}`, source: "Competencia", sourceIcon: "🏁", category: "Competencia", summary: opp.suggestion, relevanceScore: 0, viralScore: 0, brandFitScore: 0, timingWindow: "—", effort: "M", volume: 0, velocity: "—", timestamp: "Ahora", campaigns: [] },
   });
 
-  const scanTwitter = async () => {
-    setTwitterPhase("fetching");
-    setTwitterMsg("Obteniendo tendencias de trends24.in/chile...");
-    setTwitterTrends([]);
-    try {
-      const raw = await apiScanTwitter();
-      if (!raw.length) { setTwitterPhase("error"); setTwitterMsg("Sin tendencias en trends24.in"); return; }
-      setTwitterPhase("scoring");
-      setTwitterMsg(`Analizando ${raw.length} tendencias con Claude...`);
-      const scored = await apiScore(raw);
-      setTwitterTrends(scored);
-      setTwitterPhase("done");
-      setTwitterMsg(`${scored.length} tendencias`);
-    } catch (e: any) {
-      setTwitterPhase("error");
-      setTwitterMsg(e.message || "Error desconocido");
-    }
-  };
-
-  const scanGoogle = async () => {
-    setGooglePhase("fetching");
-    setGoogleMsg("Obteniendo búsquedas de Google Trends Chile...");
-    setGoogleTrends([]);
-    try {
-      const raw = await apiScanGoogle();
-      if (!raw.length) { setGooglePhase("error"); setGoogleMsg("Sin datos de Google Trends"); return; }
-      setGooglePhase("scoring");
-      setGoogleMsg(`Analizando ${raw.length} búsquedas con Claude...`);
-      const scored = await apiScore(raw);
-      setGoogleTrends(scored);
-      setGooglePhase("done");
-      setGoogleMsg(`${scored.length} búsquedas`);
-    } catch (e: any) {
-      setGooglePhase("error");
-      setGoogleMsg(e.message || "Error desconocido");
-    }
-  };
-
-  const voteTwitter = (id: string) => setTwitterVotes((p) => { const n = new Set(p); n.has(id) ? n.delete(id) : n.add(id); return n; });
-  const voteGoogle = (id: string) => setGoogleVotes((p) => { const n = new Set(p); n.has(id) ? n.delete(id) : n.add(id); return n; });
-
-  const sortByScore = (arr: ScoredTrend[]) =>
-    [...arr].sort((a, b) => {
-      const sc = (t: ScoredTrend) => ((t.relevanceScore || 0) + (t.viralScore || 0) + (t.brandFitScore || 0)) / 3;
-      return sc(b) - sc(a);
-    });
+  const voteTwitter = (id: string) => setTwitterVotes(p => { const n = new Set(p); n.has(id) ? n.delete(id) : n.add(id); return n; });
+  const voteGoogle = (id: string) => setGoogleVotes(p => { const n = new Set(p); n.has(id) ? n.delete(id) : n.add(id); return n; });
+  const sortByScore = (arr: ScoredTrend[]) => [...arr].sort((a, b) => {
+    const sc = (t: ScoredTrend) => ((t.relevanceScore || 0) + (t.viralScore || 0) + (t.brandFitScore || 0)) / 3;
+    return sc(b) - sc(a);
+  });
 
   const anyLive = twitterPhase === "done" || googlePhase === "done";
+  const today = new Date().toLocaleDateString("es-CL", { day: "2-digit", month: "short", year: "numeric" }).toUpperCase();
 
   return (
-    <div style={{ minHeight: "100vh", background: "#0a0a0a", color: "#e5e5e5", fontFamily: "'DM Sans', -apple-system, sans-serif", maxWidth: 720, margin: "0 auto" }}>
+    <div style={{ minHeight: "100vh", background: T.bg, color: T.txt1, fontFamily: "'DM Sans', -apple-system, sans-serif" }}>
+      <style>{`
+        @keyframes pulse{0%,100%{opacity:1}50%{opacity:0.4}}
+        @keyframes blink{0%,100%{opacity:1}50%{opacity:0.3}}
+        * { box-sizing: border-box; }
+        ::-webkit-scrollbar { width: 4px; height: 4px; }
+        ::-webkit-scrollbar-track { background: transparent; }
+        ::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.08); border-radius: 2px; }
+      `}</style>
 
-      {/* HEADER */}
-      <div style={{ padding: "16px 16px 14px", borderBottom: "1px solid rgba(255,255,255,0.06)", background: "linear-gradient(180deg, rgba(0,102,255,0.04) 0%, transparent 100%)" }}>
-        <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 4 }}>
-          <div style={{ width: 28, height: 28, borderRadius: 7, background: "linear-gradient(135deg, #0044cc, #0066ff)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 14, color: "#fff" }}>⚡</div>
-          <h1 style={{ fontSize: 18, fontWeight: 800, margin: 0 }}>
-            <span style={{ color: "#fff" }}>Trend Scout</span>
-            <span style={{ color: "#0066ff", marginLeft: 5 }}>Agent</span>
-          </h1>
-          {(anyLive || compPhase === "done") && <span style={{ fontSize: 8, color: "#34d399", background: "rgba(52,211,153,0.15)", padding: "2px 7px", borderRadius: 12, fontWeight: 700 }}>LIVE</span>}
+      {/* ── STATUS BAR ── */}
+      <div style={{
+        background: T.surface, borderBottom: `1px solid ${T.border}`,
+        padding: "0 20px", display: "flex", alignItems: "center", gap: 16,
+        height: 36, fontSize: 10, color: T.txt3, fontFamily: T.mono,
+        position: "sticky", top: 0, zIndex: 100,
+      }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+          <span style={{
+            display: "inline-flex", alignItems: "center", gap: 4,
+            fontSize: 8, fontWeight: 700, color: T.green,
+            background: `${T.green}12`, padding: "2px 8px", borderRadius: 3,
+            border: `1px solid ${T.green}25`,
+            animation: anyLive ? "blink 2s ease-in-out infinite" : "none",
+          }}>
+            ● {anyLive ? "LIVE" : "STANDBY"}
+          </span>
         </div>
-        <p style={{ fontSize: 10, color: "#555", margin: "0 2px 2px" }}>Scraping real · Scoring IA · Push a Notion · Blue Express × Copec</p>
-        <p style={{ fontSize: 10, color: "#4d94ff", margin: "0 0 10px", fontWeight: 600 }}>Líder de Negocio: Rodrigo Madariaga</p>
+        <span style={{ color: T.txt3 }}>|</span>
+        <span>{today}</span>
+        <span style={{ color: T.txt3 }}>|</span>
+        <span>Blue Express × Copec Digital</span>
+        <span style={{ color: T.txt3 }}>|</span>
+        <span>Líder: R. Madariaga</span>
+        <div style={{ flex: 1 }} />
+        {anyLive && (
+          <span style={{ fontSize: 9, color: T.green }}>
+            {[twitterPhase === "done" && "𝕏", googlePhase === "done" && "Google"].filter(Boolean).join(" · ")} activos
+          </span>
+        )}
+      </div>
 
-        <div style={{ display: "flex", gap: 4, marginBottom: 12 }}>
-          {([{ k: "tendencias", l: "📡 Tendencias" }, { k: "competencia", l: "🏁 Competencia" }] as const).map((tab) => (
+      {/* ── HEADER ── */}
+      <div style={{
+        padding: "20px 24px 0",
+        background: `linear-gradient(180deg, ${T.blue}06 0%, transparent 100%)`,
+        borderBottom: `1px solid ${T.border}`,
+      }}>
+        <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 16, marginBottom: 16 }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+            <div style={{
+              width: 42, height: 42, borderRadius: 10,
+              background: `linear-gradient(135deg, #0033aa, ${T.blue})`,
+              display: "flex", alignItems: "center", justifyContent: "center",
+              fontSize: 20, flexShrink: 0,
+              boxShadow: `0 0 20px ${T.blue}40`,
+            }}>⚡</div>
+            <div>
+              <h1 style={{ fontSize: 22, fontWeight: 900, margin: 0, letterSpacing: -0.5 }}>
+                <span style={{ color: T.txt1 }}>TREND SCOUT</span>
+                <span style={{ color: T.blue }}> AGENT</span>
+              </h1>
+              <p style={{ fontSize: 10, color: T.txt3, margin: "1px 0 0", fontFamily: T.mono }}>
+                Scraping real · Scoring IA · Push a Notion
+              </p>
+            </div>
+          </div>
+
+          {/* Brand pills */}
+          <div style={{ display: "flex", gap: 4, flexWrap: "wrap", alignItems: "flex-start", justifyContent: "flex-end" }}>
+            {BRAND.pillars.map((p, i) => (
+              <span key={i} style={{ fontSize: 8, fontWeight: 700, color: T.blue, background: `${T.blue}10`, padding: "2px 7px", borderRadius: 3, border: `1px solid ${T.blue}20`, fontFamily: T.mono }}>{p}</span>
+            ))}
+          </div>
+        </div>
+
+        {/* ── TABS ── */}
+        <div style={{ display: "flex", gap: 2, marginBottom: -1 }}>
+          {([
+            { k: "tendencias", l: "📡 TENDENCIAS", accent: T.blue },
+            { k: "competencia", l: "🏁 COMPETENCIA", accent: T.red },
+          ] as const).map(tab => (
             <button key={tab.k} onClick={() => setActiveTab(tab.k)} style={{
-              padding: "6px 14px", borderRadius: 8, fontSize: 11, fontWeight: 700, cursor: "pointer",
-              border: activeTab === tab.k ? "1px solid #0066ff" : "1px solid rgba(255,255,255,0.08)",
-              background: activeTab === tab.k ? "rgba(0,102,255,0.15)" : "transparent",
-              color: activeTab === tab.k ? "#4d94ff" : "#555",
+              padding: "8px 18px", fontSize: 11, fontWeight: 700, cursor: "pointer",
+              fontFamily: T.mono, letterSpacing: 0.5,
+              background: activeTab === tab.k ? T.surface : "transparent",
+              border: `1px solid ${activeTab === tab.k ? tab.accent + "50" : "transparent"}`,
+              borderBottom: activeTab === tab.k ? `1px solid ${T.surface}` : `1px solid transparent`,
+              color: activeTab === tab.k ? tab.accent : T.txt3,
+              borderRadius: "8px 8px 0 0",
+              marginBottom: activeTab === tab.k ? -1 : 0,
             }}>{tab.l}</button>
           ))}
         </div>
-
-        {activeTab === "tendencias" && (
-          <div style={{ display: "flex", gap: 6 }}>
-            <button
-              onClick={scanTwitter}
-              disabled={twitterPhase === "fetching" || twitterPhase === "scoring"}
-              style={{
-                flex: 1, padding: "10px 6px", borderRadius: 10,
-                border: "1px solid rgba(29,155,240,0.3)",
-                cursor: twitterPhase === "fetching" || twitterPhase === "scoring" ? "not-allowed" : "pointer",
-                background: twitterPhase === "fetching" || twitterPhase === "scoring" ? "rgba(255,255,255,0.05)" : "rgba(29,155,240,0.15)",
-                color: twitterPhase === "fetching" || twitterPhase === "scoring" ? "#888" : "#1d9bf0",
-                fontSize: 12, fontWeight: 700,
-              }}
-            >
-              {twitterPhase === "idle" ? "𝕏 Escanear Twitter" : twitterPhase === "fetching" ? "📡 Buscando..." : twitterPhase === "scoring" ? "🧠 Scoring..." : twitterPhase === "error" ? "🔄 Reintentar 𝕏" : "🔄 Actualizar 𝕏"}
-            </button>
-            <button
-              onClick={scanGoogle}
-              disabled={googlePhase === "fetching" || googlePhase === "scoring"}
-              style={{
-                flex: 1, padding: "10px 6px", borderRadius: 10,
-                border: "1px solid rgba(52,211,153,0.25)",
-                cursor: googlePhase === "fetching" || googlePhase === "scoring" ? "not-allowed" : "pointer",
-                background: googlePhase === "fetching" || googlePhase === "scoring" ? "rgba(255,255,255,0.05)" : "rgba(52,211,153,0.1)",
-                color: googlePhase === "fetching" || googlePhase === "scoring" ? "#888" : "#34d399",
-                fontSize: 12, fontWeight: 700,
-              }}
-            >
-              {googlePhase === "idle" ? "🔍 Escanear Google" : googlePhase === "fetching" ? "📡 Buscando..." : googlePhase === "scoring" ? "🧠 Scoring..." : googlePhase === "error" ? "🔄 Reintentar Google" : "🔄 Actualizar Google"}
-            </button>
-          </div>
-        )}
-
-        {activeTab === "competencia" && (
-          <div style={{ display: "flex", gap: 6 }}>
-            <button
-              onClick={scanMetaAds}
-              disabled={metaPhase === "fetching"}
-              style={{ flex: 1, padding: "10px 6px", borderRadius: 10, border: "1px solid rgba(24,119,242,0.3)", cursor: metaPhase === "fetching" ? "not-allowed" : "pointer", background: metaPhase === "fetching" ? "rgba(255,255,255,0.05)" : "rgba(24,119,242,0.12)", color: metaPhase === "fetching" ? "#888" : "#1877f2", fontSize: 12, fontWeight: 700 }}
-            >
-              {metaPhase === "idle" ? "📲 Meta Ads Library" : metaPhase === "fetching" ? "🌐 Abriendo..." : metaPhase === "error" ? "🔄 Reintentar Meta" : "🔄 Actualizar Meta"}
-            </button>
-            <button
-              onClick={scanCompetitors}
-              disabled={compPhase === "fetching"}
-              style={{ flex: 1, padding: "10px 6px", borderRadius: 10, border: "1px solid rgba(153,27,27,0.3)", cursor: compPhase === "fetching" ? "not-allowed" : "pointer", background: compPhase === "fetching" ? "rgba(255,255,255,0.05)" : "rgba(153,27,27,0.15)", color: compPhase === "fetching" ? "#888" : "#f87171", fontSize: 12, fontWeight: 700 }}
-            >
-              {compPhase === "idle" ? "🏁 Análisis IA" : compPhase === "fetching" ? "🧠 Analizando..." : compPhase === "error" ? "🔄 Reintentar IA" : "🔄 Actualizar IA"}
-            </button>
-          </div>
-        )}
-
       </div>
-
-      {/* BRAND BAR */}
-      {activeTab === "tendencias" && anyLive && (
-        <div style={{ padding: "8px 16px", borderBottom: "1px solid rgba(255,255,255,0.04)" }}>
-          <div style={{ display: "flex", alignItems: "center", gap: 5, flexWrap: "wrap", padding: "6px 10px", background: "rgba(0,102,255,0.03)", borderRadius: 8, border: "1px solid rgba(0,102,255,0.06)" }}>
-            <span style={{ fontSize: 8, color: "#555", fontWeight: 700, textTransform: "uppercase" }}>Marca</span>
-            {BRAND.pillars.map((p, i) => <span key={i} style={{ fontSize: 8, color: "#4d94ff", background: "rgba(0,102,255,0.08)", padding: "1px 6px", borderRadius: 4, fontWeight: 600 }}>{p}</span>)}
-            <span style={{ fontSize: 8, color: "#f87171", fontWeight: 600 }}>✕ {BRAND.avoidances.join(", ")}</span>
-          </div>
-        </div>
-      )}
 
       {/* ── TENDENCIAS TAB ── */}
       {activeTab === "tendencias" && (
-        <div style={{ padding: "10px 10px 0" }}>
-          <style>{`@keyframes pulse{0%,100%{opacity:1}50%{opacity:0.5}}`}</style>
-
-          {/* ── TWITTER / X PANEL ── */}
-          <div style={{ background: "rgba(29,155,240,0.04)", border: "1px solid rgba(29,155,240,0.15)", borderRadius: 14, overflow: "hidden", marginBottom: 14 }}>
-            {/* Panel header */}
-            <div style={{ padding: "12px 14px 10px", borderBottom: "1px solid rgba(29,155,240,0.1)", display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8 }}>
-              <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                <div style={{ width: 30, height: 30, borderRadius: 7, background: "rgba(29,155,240,0.15)", border: "1px solid rgba(29,155,240,0.3)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 15, color: "#1d9bf0", fontWeight: 800 }}>𝕏</div>
-                <div>
-                  <div style={{ fontSize: 13, fontWeight: 800, color: "#e5e5e5" }}>Twitter / X Trending</div>
-                  <div style={{ fontSize: 9, color: "#555" }}>trends24.in/chile · Tiempo real</div>
-                </div>
-              </div>
-              <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-                {twitterPhase === "done" && <span style={{ fontSize: 9, color: "#1d9bf0", background: "rgba(29,155,240,0.12)", padding: "2px 7px", borderRadius: 10, fontWeight: 700 }}>{twitterMsg}</span>}
-                {twitterPhase === "error" && <span style={{ fontSize: 9, color: "#f87171" }}>{twitterMsg}</span>}
-                <button
-                  onClick={scanTwitter}
-                  disabled={twitterPhase === "fetching" || twitterPhase === "scoring"}
-                  style={{ padding: "5px 12px", borderRadius: 8, fontSize: 10, fontWeight: 700, cursor: twitterPhase === "fetching" || twitterPhase === "scoring" ? "not-allowed" : "pointer", background: twitterPhase === "fetching" || twitterPhase === "scoring" ? "rgba(255,255,255,0.04)" : "rgba(29,155,240,0.12)", border: "1px solid rgba(29,155,240,0.25)", color: twitterPhase === "fetching" || twitterPhase === "scoring" ? "#666" : "#1d9bf0", whiteSpace: "nowrap" }}
-                >
-                  {twitterPhase === "idle" ? "Escanear" : twitterPhase === "fetching" ? "📡 Buscando..." : twitterPhase === "scoring" ? "🧠 Scoring..." : twitterPhase === "error" ? "🔄 Reintentar" : "🔄 Actualizar"}
-                </button>
-              </div>
-            </div>
-
-            {/* Panel body */}
-            <div style={{ padding: twitterTrends.length > 0 ? "10px 10px 10px" : "0" }}>
-              {twitterPhase === "idle" && (
-                <div style={{ textAlign: "center", padding: "30px 20px" }}>
-                  <div style={{ fontSize: 32, marginBottom: 8 }}>𝕏</div>
-                  <div style={{ fontSize: 13, fontWeight: 700, color: "#444", marginBottom: 4 }}>Tendencias en Twitter Chile</div>
-                  <div style={{ fontSize: 11, color: "#333" }}>Datos en tiempo real desde trends24.in/chile</div>
-                </div>
-              )}
-              {(twitterPhase === "fetching" || twitterPhase === "scoring") && (
-                <div style={{ textAlign: "center", padding: "30px 20px" }}>
-                  <div style={{ fontSize: 32, marginBottom: 8, animation: "pulse 1.5s ease-in-out infinite" }}>{twitterPhase === "fetching" ? "📡" : "🧠"}</div>
-                  <div style={{ fontSize: 12, fontWeight: 700, color: "#1d9bf0" }}>{twitterPhase === "fetching" ? "Scrapeando trends24.in..." : "Analizando con Claude..."}</div>
-                </div>
-              )}
-              {twitterPhase === "done" && sortByScore(twitterTrends).map((t) => (
-                <TrendCard key={t.id} t={t} open={twitterExpanded === t.id} toggle={() => setTwitterExpanded(twitterExpanded === t.id ? null : t.id)} votes={twitterVotes} onVote={voteTwitter} onCreate={(c, tr) => setModal({ campaign: c, trend: tr })} />
-              ))}
-            </div>
-          </div>
-
-          {/* ── GOOGLE TRENDS PANEL ── */}
-          <div style={{ background: "rgba(52,211,153,0.03)", border: "1px solid rgba(52,211,153,0.15)", borderRadius: 14, overflow: "hidden", marginBottom: 14 }}>
-            {/* Panel header */}
-            <div style={{ padding: "12px 14px 10px", borderBottom: "1px solid rgba(52,211,153,0.1)", display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8 }}>
-              <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                <div style={{ width: 30, height: 30, borderRadius: 7, background: "rgba(52,211,153,0.12)", border: "1px solid rgba(52,211,153,0.25)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 15 }}>🔍</div>
-                <div>
-                  <div style={{ fontSize: 13, fontWeight: 800, color: "#e5e5e5" }}>Google Trends Chile</div>
-                  <div style={{ fontSize: 9, color: "#555" }}>trends.google.es · Últimas 24 horas</div>
-                </div>
-              </div>
-              <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-                {googlePhase === "done" && <span style={{ fontSize: 9, color: "#34d399", background: "rgba(52,211,153,0.1)", padding: "2px 7px", borderRadius: 10, fontWeight: 700 }}>{googleMsg}</span>}
-                {googlePhase === "error" && <span style={{ fontSize: 9, color: "#f87171" }}>{googleMsg}</span>}
-                <button
-                  onClick={scanGoogle}
-                  disabled={googlePhase === "fetching" || googlePhase === "scoring"}
-                  style={{ padding: "5px 12px", borderRadius: 8, fontSize: 10, fontWeight: 700, cursor: googlePhase === "fetching" || googlePhase === "scoring" ? "not-allowed" : "pointer", background: googlePhase === "fetching" || googlePhase === "scoring" ? "rgba(255,255,255,0.04)" : "rgba(52,211,153,0.1)", border: "1px solid rgba(52,211,153,0.25)", color: googlePhase === "fetching" || googlePhase === "scoring" ? "#666" : "#34d399", whiteSpace: "nowrap" }}
-                >
-                  {googlePhase === "idle" ? "Escanear" : googlePhase === "fetching" ? "📡 Buscando..." : googlePhase === "scoring" ? "🧠 Scoring..." : googlePhase === "error" ? "🔄 Reintentar" : "🔄 Actualizar"}
-                </button>
-              </div>
-            </div>
-
-            {/* Panel body */}
-            <div style={{ padding: googleTrends.length > 0 ? "10px 10px 10px" : "0" }}>
-              {googlePhase === "idle" && (
-                <div style={{ textAlign: "center", padding: "30px 20px" }}>
-                  <div style={{ fontSize: 32, marginBottom: 8 }}>🔍</div>
-                  <div style={{ fontSize: 13, fontWeight: 700, color: "#444", marginBottom: 4 }}>Búsquedas trending en Chile</div>
-                  <div style={{ fontSize: 11, color: "#333" }}>Intención de búsqueda activa — últimas 24 horas</div>
-                </div>
-              )}
-              {(googlePhase === "fetching" || googlePhase === "scoring") && (
-                <div style={{ textAlign: "center", padding: "30px 20px" }}>
-                  <div style={{ fontSize: 32, marginBottom: 8, animation: "pulse 1.5s ease-in-out infinite" }}>{googlePhase === "fetching" ? "📡" : "🧠"}</div>
-                  <div style={{ fontSize: 12, fontWeight: 700, color: "#34d399" }}>{googlePhase === "fetching" ? "Consultando Google Trends RSS..." : "Analizando con Claude..."}</div>
-                </div>
-              )}
-              {googlePhase === "done" && sortByScore(googleTrends).map((t) => (
-                <TrendCard key={t.id} t={t} open={googleExpanded === t.id} toggle={() => setGoogleExpanded(googleExpanded === t.id ? null : t.id)} votes={googleVotes} onVote={voteGoogle} onCreate={(c, tr) => setModal({ campaign: c, trend: tr })} />
-              ))}
-            </div>
+        <div style={{ padding: "16px 16px 24px" }}>
+          <div style={{
+            display: "grid",
+            gridTemplateColumns: "repeat(auto-fit, minmax(340px, 1fr))",
+            gap: 14,
+            alignItems: "start",
+          }}>
+            <TrendPanel
+              title="Twitter / X" icon="𝕏" accent={T.twitter}
+              subtitle="trends24.in/chile · Tiempo real"
+              phase={twitterPhase} msg={twitterMsg}
+              trends={twitterTrends} expanded={twitterExpanded} votes={twitterVotes}
+              onScan={scanTwitter}
+              onToggle={(id) => setTwitterExpanded(twitterExpanded === id ? null : id)}
+              onVote={voteTwitter}
+              onCreate={(c, tr) => setModal({ campaign: c, trend: tr })}
+            />
+            <TrendPanel
+              title="Google Trends" icon="🔍" accent={T.google}
+              subtitle="trends.google.es · Últimas 24 horas"
+              phase={googlePhase} msg={googleMsg}
+              trends={googleTrends} expanded={googleExpanded} votes={googleVotes}
+              onScan={scanGoogle}
+              onToggle={(id) => setGoogleExpanded(googleExpanded === id ? null : id)}
+              onVote={voteGoogle}
+              onCreate={(c, tr) => setModal({ campaign: c, trend: tr })}
+            />
           </div>
         </div>
       )}
 
       {/* ── COMPETENCIA TAB ── */}
       {activeTab === "competencia" && (
-        <div style={{ padding: "12px 10px" }}>
-          <style>{`@keyframes pulse{0%,100%{opacity:1}50%{opacity:0.5}}`}</style>
+        <div style={{ padding: "16px 16px 24px", display: "flex", flexDirection: "column", gap: 14 }}>
 
-          {/* ── META ADS LIBRARY PANEL ── */}
-          <div style={{ background: "rgba(24,119,242,0.04)", border: "1px solid rgba(24,119,242,0.18)", borderRadius: 14, overflow: "hidden", marginBottom: 14 }}>
-            {/* Header */}
-            <div style={{ padding: "12px 14px 10px", borderBottom: "1px solid rgba(24,119,242,0.1)", display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8 }}>
+          {/* META ADS LIBRARY */}
+          <Panel accent={T.meta} header={
+            <>
               <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                <div style={{ width: 30, height: 30, borderRadius: 7, background: "rgba(24,119,242,0.15)", border: "1px solid rgba(24,119,242,0.3)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 16 }}>📲</div>
+                {metaPhase === "done" && <Dot color={T.meta} />}
                 <div>
-                  <div style={{ fontSize: 13, fontWeight: 800, color: "#e5e5e5" }}>Meta Ads Library</div>
-                  <div style={{ fontSize: 9, color: "#555" }}>Anuncios activos en Facebook e Instagram · Playwright</div>
+                  <div style={{ fontSize: 13, fontWeight: 800, color: T.txt1 }}>📲 META ADS LIBRARY</div>
+                  <div style={{ fontSize: 9, color: T.txt3, fontFamily: T.mono }}>Anuncios activos por página · Playwright</div>
                 </div>
               </div>
               <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-                {metaPhase === "done" && <span style={{ fontSize: 9, color: "#1877f2", background: "rgba(24,119,242,0.1)", padding: "2px 7px", borderRadius: 10, fontWeight: 700 }}>{metaMsg}</span>}
-                {metaPhase === "error" && <span style={{ fontSize: 9, color: "#f87171", maxWidth: 100, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{metaMsg}</span>}
-                <button
-                  onClick={scanMetaAds}
-                  disabled={metaPhase === "fetching"}
-                  style={{ padding: "5px 12px", borderRadius: 8, fontSize: 10, fontWeight: 700, cursor: metaPhase === "fetching" ? "not-allowed" : "pointer", background: metaPhase === "fetching" ? "rgba(255,255,255,0.04)" : "rgba(24,119,242,0.12)", border: "1px solid rgba(24,119,242,0.3)", color: metaPhase === "fetching" ? "#666" : "#1877f2", whiteSpace: "nowrap" }}
-                >
+                {metaPhase === "done" && <span style={{ fontSize: 9, color: T.meta, fontFamily: T.mono, fontWeight: 700 }}>{metaMsg}</span>}
+                {metaPhase === "error" && <span style={{ fontSize: 9, color: T.red }}>{metaMsg.slice(0, 40)}</span>}
+                <button onClick={scanMetaAds} disabled={metaPhase === "fetching"} style={{
+                  padding: "5px 12px", borderRadius: 7, fontSize: 10, fontWeight: 700,
+                  cursor: metaPhase === "fetching" ? "not-allowed" : "pointer",
+                  background: metaPhase === "fetching" ? "rgba(255,255,255,0.03)" : `${T.meta}15`,
+                  border: `1px solid ${metaPhase === "fetching" ? T.border : T.meta + "40"}`,
+                  color: metaPhase === "fetching" ? T.txt3 : T.meta, whiteSpace: "nowrap",
+                }}>
                   {metaPhase === "idle" ? "Escanear" : metaPhase === "fetching" ? "🌐 Abriendo..." : metaPhase === "error" ? "🔄 Reintentar" : "🔄 Actualizar"}
                 </button>
               </div>
-            </div>
-
-            {/* Body */}
-            <div style={{ padding: "10px" }}>
+            </>
+          }>
+            <div style={{ padding: 12 }}>
               {metaPhase === "idle" && (
-                <div style={{ textAlign: "center", padding: "24px 20px" }}>
-                  <div style={{ fontSize: 28, marginBottom: 8 }}>📲</div>
-                  <div style={{ fontSize: 12, fontWeight: 700, color: "#444", marginBottom: 4 }}>Chilexpress · Starken en Meta Ads</div>
-                  <div style={{ fontSize: 10, color: "#333" }}>Playwright abre la Biblioteca de Anuncios, captura screenshots y usa Claude vision para extraer anuncios activos</div>
+                <div style={{ textAlign: "center", padding: "28px 20px" }}>
+                  <div style={{ fontSize: 28, marginBottom: 8, opacity: 0.25 }}>📲</div>
+                  <div style={{ fontSize: 11, fontWeight: 700, color: T.txt3, marginBottom: 3 }}>Chilexpress · Starken · Meta Ads</div>
+                  <div style={{ fontSize: 9, color: T.txt3 }}>Playwright navega la Biblioteca de Anuncios por página oficial</div>
                 </div>
               )}
               {metaPhase === "fetching" && (
-                <div style={{ textAlign: "center", padding: "24px 20px" }}>
+                <div style={{ textAlign: "center", padding: "28px 20px" }}>
+                  <style>{`@keyframes pulse{0%,100%{opacity:1}50%{opacity:0.4}}`}</style>
                   <div style={{ fontSize: 28, marginBottom: 8, animation: "pulse 1.5s ease-in-out infinite" }}>🌐</div>
-                  <div style={{ fontSize: 12, fontWeight: 700, color: "#1877f2", marginBottom: 4 }}>{metaMsg}</div>
-                  <div style={{ fontSize: 10, color: "#555" }}>Esto puede tardar ~60s — Playwright navega Meta Ads Library</div>
+                  <div style={{ fontSize: 11, fontWeight: 700, color: T.meta }}>{metaMsg}</div>
+                  <div style={{ fontSize: 9, color: T.txt3, marginTop: 4 }}>Puede tardar ~60s — navegando Meta Ads Library</div>
                 </div>
               )}
               {metaPhase === "done" && metaAds.length > 0 && (
                 <>
-                  {/* Screenshot lightbox */}
                   {metaScreenshot && (
-                    <div onClick={() => setMetaScreenshot(null)} style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.85)", zIndex: 2000, display: "flex", alignItems: "center", justifyContent: "center", padding: 16 }}>
-                      <div style={{ position: "relative", maxWidth: "95vw", maxHeight: "90vh" }}>
-                        <img src={`data:image/jpeg;base64,${metaScreenshot}`} alt="Meta Ads screenshot" style={{ maxWidth: "100%", maxHeight: "85vh", borderRadius: 10, border: "1px solid rgba(255,255,255,0.1)" }} />
-                        <button onClick={() => setMetaScreenshot(null)} style={{ position: "absolute", top: -12, right: -12, width: 28, height: 28, borderRadius: "50%", background: "#222", border: "1px solid rgba(255,255,255,0.15)", color: "#aaa", fontSize: 14, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}>✕</button>
+                    <div onClick={() => setMetaScreenshot(null)} style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.88)", zIndex: 2000, display: "flex", alignItems: "center", justifyContent: "center", padding: 16 }}>
+                      <div style={{ position: "relative" }}>
+                        <img src={`data:image/jpeg;base64,${metaScreenshot}`} alt="Meta Ads" style={{ maxWidth: "92vw", maxHeight: "86vh", borderRadius: 10, border: `1px solid ${T.border}` }} />
+                        <button onClick={() => setMetaScreenshot(null)} style={{ position: "absolute", top: -12, right: -12, width: 28, height: 28, borderRadius: "50%", background: T.surface, border: `1px solid ${T.border}`, color: T.txt2, fontSize: 14, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}>✕</button>
                       </div>
                     </div>
                   )}
-
-                  {/* Competitor columns */}
-                  <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
+                  <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(260px, 1fr))", gap: 10 }}>
                     {metaAds.map((result) => {
                       const color = result.competitor === "Chilexpress" ? "#FF6B00" : "#E31837";
                       return (
-                        <div key={result.competitor} style={{ background: `${color}08`, border: `1px solid ${color}22`, borderRadius: 10, overflow: "hidden" }}>
-                          {/* Competitor header */}
-                          <div style={{ padding: "8px 10px", borderBottom: `1px solid ${color}18`, display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-                            <span style={{ fontSize: 11, fontWeight: 800, color }}>{result.competitor}</span>
-                            <span style={{ fontSize: 8, color: "#555" }}>{result.ads.length} anuncios</span>
+                        <div key={result.competitor} style={{ background: T.card, border: `1px solid ${color}20`, borderTop: `2px solid ${color}`, borderRadius: 9, overflow: "hidden" }}>
+                          <div style={{ padding: "8px 11px", borderBottom: `1px solid ${color}15`, display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+                            <span style={{ fontSize: 12, fontWeight: 800, color, fontFamily: T.mono }}>{result.competitor.toUpperCase()}</span>
+                            <span style={{ fontSize: 9, color: T.txt3, fontFamily: T.mono }}>{result.ads.length} anuncios</span>
                           </div>
-
-                          {/* Screenshot thumbnail */}
                           {result.screenshotB64 && (
-                            <div
-                              onClick={() => setMetaScreenshot(result.screenshotB64)}
-                              style={{ position: "relative", cursor: "zoom-in", overflow: "hidden", borderBottom: `1px solid ${color}12` }}
-                            >
-                              <img
-                                src={`data:image/jpeg;base64,${result.screenshotB64}`}
-                                alt={`${result.competitor} Meta Ads`}
-                                style={{ width: "100%", display: "block", maxHeight: 130, objectFit: "cover", objectPosition: "top" }}
-                              />
-                              <div style={{ position: "absolute", bottom: 4, right: 6, fontSize: 8, color: "#fff", background: "rgba(0,0,0,0.55)", padding: "1px 5px", borderRadius: 4 }}>🔍 Ver completo</div>
+                            <div onClick={() => setMetaScreenshot(result.screenshotB64)} style={{ position: "relative", cursor: "zoom-in", overflow: "hidden", borderBottom: `1px solid ${color}10` }}>
+                              <img src={`data:image/jpeg;base64,${result.screenshotB64}`} alt={`${result.competitor} Meta Ads`}
+                                style={{ width: "100%", display: "block", maxHeight: 140, objectFit: "cover", objectPosition: "top" }} />
+                              <div style={{ position: "absolute", bottom: 4, right: 6, fontSize: 8, color: "#fff", background: "rgba(0,0,0,0.6)", padding: "1px 6px", borderRadius: 3 }}>🔍 Ver completo</div>
                             </div>
                           )}
-
-                          {/* Error state */}
                           {result.error && (
-                            <div style={{ padding: "8px 10px" }}>
-                              <span style={{ fontSize: 9, color: "#f87171" }}>⚠️ {result.error.slice(0, 80)}</span>
+                            <div style={{ padding: "7px 11px" }}>
+                              <span style={{ fontSize: 9, color: T.red }}>⚠ {result.error.slice(0, 80)}</span>
                             </div>
                           )}
-
-                          {/* Ad cards */}
-                          <div style={{ padding: "6px 8px" }}>
+                          <div style={{ padding: "7px 9px" }}>
                             {result.ads.length === 0 && !result.error && (
-                              <div style={{ fontSize: 10, color: "#444", padding: "8px 0", textAlign: "center" }}>Sin anuncios detectados</div>
+                              <div style={{ fontSize: 10, color: T.txt3, padding: "8px 0", textAlign: "center" }}>Sin anuncios detectados</div>
                             )}
                             {result.ads.map((ad: MetaAd) => (
-                              <div key={ad.id} style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.05)", borderRadius: 7, padding: "8px 9px", marginBottom: 6 }}>
+                              <div key={ad.id} style={{ background: "rgba(255,255,255,0.02)", border: `1px solid ${T.border}`, borderRadius: 6, padding: "8px 9px", marginBottom: 6 }}>
                                 <div style={{ display: "flex", gap: 4, flexWrap: "wrap", marginBottom: 4 }}>
-                                  <span style={{ fontSize: 8, fontWeight: 700, color, background: `${color}15`, padding: "1px 5px", borderRadius: 4 }}>{ad.platform || "Meta"}</span>
-                                  {ad.creativeType && <span style={{ fontSize: 8, color: "#666", background: "rgba(255,255,255,0.04)", padding: "1px 5px", borderRadius: 4 }}>{ad.creativeType}</span>}
-                                  {ad.activeFrom && <span style={{ fontSize: 8, color: "#555" }}>desde {ad.activeFrom}</span>}
+                                  <Badge color={color}>{ad.platform || "Meta"}</Badge>
+                                  {ad.creativeType && <Badge color={T.txt3}>{ad.creativeType}</Badge>}
+                                  {ad.activeFrom && <span style={{ fontSize: 8, color: T.txt3, fontFamily: T.mono }}>desde {ad.activeFrom}</span>}
                                 </div>
-                                <p style={{ fontSize: 10, color: "#bbb", margin: "0 0 4px", lineHeight: 1.4 }}>{ad.copy}</p>
-                                {ad.cta && (
-                                  <span style={{ fontSize: 8, fontWeight: 700, color: "#1877f2", background: "rgba(24,119,242,0.1)", padding: "1px 6px", borderRadius: 4, border: "1px solid rgba(24,119,242,0.2)" }}>{ad.cta}</span>
-                                )}
+                                <p style={{ fontSize: 10, color: T.txt2, margin: "0 0 4px", lineHeight: 1.4 }}>{ad.copy}</p>
+                                {ad.cta && <Badge color={T.meta}>{ad.cta}</Badge>}
                               </div>
                             ))}
                           </div>
-
-                          {/* Scan timestamp */}
-                          <div style={{ padding: "4px 10px 8px", fontSize: 8, color: "#444" }}>
-                            Escaneado: {new Date(result.scannedAt).toLocaleTimeString("es-CL")}
+                          <div style={{ padding: "3px 11px 8px", fontSize: 8, color: T.txt3, fontFamily: T.mono }}>
+                            {new Date(result.scannedAt).toLocaleTimeString("es-CL")}
                           </div>
                         </div>
                       );
@@ -891,94 +915,132 @@ export default function Dashboard() {
                 </>
               )}
             </div>
-          </div>
+          </Panel>
 
-          {/* ── AI ANALYSIS PANEL ── */}
-          <div style={{ background: "rgba(255,255,255,0.01)", border: "1px solid rgba(255,255,255,0.06)", borderRadius: 14, overflow: "hidden", marginBottom: 14 }}>
-            <div style={{ padding: "12px 14px 10px", borderBottom: "1px solid rgba(255,255,255,0.05)", display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8 }}>
+          {/* ANÁLISIS REDES */}
+          <Panel accent={T.red} header={
+            <>
               <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                <div style={{ width: 30, height: 30, borderRadius: 7, background: "rgba(248,71,71,0.1)", border: "1px solid rgba(248,71,71,0.2)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 16 }}>🏁</div>
+                {compPhase === "done" && <Dot color={T.red} />}
                 <div>
-                  <div style={{ fontSize: 13, fontWeight: 800, color: "#e5e5e5" }}>Análisis IA de Competidores</div>
-                  <div style={{ fontSize: 9, color: "#555" }}>RRSS + web · Claude con web_search</div>
+                  <div style={{ fontSize: 13, fontWeight: 800, color: T.txt1 }}>📱 ANÁLISIS REDES</div>
+                  <div style={{ fontSize: 9, color: T.txt3, fontFamily: T.mono }}>Facebook · Screenshots + Claude web_search</div>
                 </div>
               </div>
               <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-                {compPhase === "done" && <span style={{ fontSize: 9, color: "#f87171", background: "rgba(248,71,71,0.08)", padding: "2px 7px", borderRadius: 10, fontWeight: 700 }}>{compMsg}</span>}
-                {compPhase === "error" && <span style={{ fontSize: 9, color: "#f87171" }}>{compMsg}</span>}
-                <button
-                  onClick={scanCompetitors}
-                  disabled={compPhase === "fetching"}
-                  style={{ padding: "5px 12px", borderRadius: 8, fontSize: 10, fontWeight: 700, cursor: compPhase === "fetching" ? "not-allowed" : "pointer", background: compPhase === "fetching" ? "rgba(255,255,255,0.04)" : "rgba(153,27,27,0.2)", border: "1px solid rgba(153,27,27,0.3)", color: compPhase === "fetching" ? "#666" : "#f87171", whiteSpace: "nowrap" }}
-                >
+                {compPhase === "done" && <span style={{ fontSize: 9, color: T.red, fontFamily: T.mono, fontWeight: 700 }}>{compMsg}</span>}
+                {compPhase === "error" && <span style={{ fontSize: 9, color: T.red }}>{compMsg.slice(0, 40)}</span>}
+                <button onClick={scanCompetitors} disabled={compPhase === "fetching"} style={{
+                  padding: "5px 12px", borderRadius: 7, fontSize: 10, fontWeight: 700,
+                  cursor: compPhase === "fetching" ? "not-allowed" : "pointer",
+                  background: compPhase === "fetching" ? "rgba(255,255,255,0.03)" : `${T.red}12`,
+                  border: `1px solid ${compPhase === "fetching" ? T.border : T.red + "40"}`,
+                  color: compPhase === "fetching" ? T.txt3 : T.red, whiteSpace: "nowrap",
+                }}>
                   {compPhase === "idle" ? "Escanear" : compPhase === "fetching" ? "🧠 Analizando..." : compPhase === "error" ? "🔄 Reintentar" : "🔄 Actualizar"}
                 </button>
               </div>
-            </div>
-
-            <div style={{ padding: "10px" }}>
+            </>
+          }>
+            <div style={{ padding: 12 }}>
               {compPhase === "idle" && (
-                <div style={{ textAlign: "center", padding: "24px 20px" }}>
-                  <div style={{ fontSize: 28, marginBottom: 8 }}>🏁</div>
-                  <div style={{ fontSize: 12, fontWeight: 700, color: "#444", marginBottom: 4 }}>Análisis IA de Competidores</div>
-                  <div style={{ fontSize: 10, color: "#333" }}>Claude escanea RRSS y web de {COMPETITORS.map((c) => c.name).join(", ")} y genera oportunidades reactivas</div>
+                <div style={{ textAlign: "center", padding: "28px 20px" }}>
+                  <div style={{ fontSize: 28, marginBottom: 8, opacity: 0.25 }}>📱</div>
+                  <div style={{ fontSize: 11, fontWeight: 700, color: T.txt3, marginBottom: 3 }}>Análisis Redes Sociales</div>
+                  <div style={{ fontSize: 9, color: T.txt3 }}>Screenshots de Facebook + análisis IA de {COMPETITORS.map(c => c.name).join(", ")}</div>
                 </div>
               )}
               {compPhase === "fetching" && (
-                <div style={{ textAlign: "center", padding: "24px 20px" }}>
+                <div style={{ textAlign: "center", padding: "28px 20px" }}>
                   <div style={{ fontSize: 28, marginBottom: 8, animation: "pulse 1.5s ease-in-out infinite" }}>🧠</div>
-                  <div style={{ fontSize: 12, fontWeight: 700, color: "#4d94ff" }}>Escaneando y analizando competidores...</div>
+                  <div style={{ fontSize: 11, fontWeight: 700, color: T.red }}>Escaneando Facebook + web_search...</div>
+                  <div style={{ fontSize: 9, color: T.txt3, marginTop: 4 }}>Tomando screenshots de Facebook y analizando con Claude</div>
                 </div>
               )}
               {compPhase === "done" && compData && (
                 <>
                   {compData.summary && (
-                    <div style={{ background: "rgba(255,255,255,0.02)", border: "1px solid rgba(255,255,255,0.07)", borderRadius: 10, padding: 12, marginBottom: 12 }}>
-                      <div style={{ fontSize: 9, color: "#555", textTransform: "uppercase", letterSpacing: 1, fontWeight: 700, marginBottom: 6 }}>Panorama Competitivo</div>
-                      <p style={{ fontSize: 12, color: "#ccc", margin: 0, lineHeight: 1.5 }}>{compData.summary}</p>
+                    <div style={{ background: T.card, border: `1px solid ${T.border}`, borderRadius: 8, padding: "11px 13px", marginBottom: 12 }}>
+                      <Label>Panorama Competitivo</Label>
+                      <p style={{ fontSize: 11, color: T.txt2, margin: "6px 0 0", lineHeight: 1.55 }}>{compData.summary}</p>
                     </div>
                   )}
+
+                  {/* Screenshots grid */}
+                  {(compData.screenshots || []).length > 0 && (
+                    <div style={{ marginBottom: 14 }}>
+                      <div style={{ marginBottom: 8 }}><Label>Facebook · Perfiles</Label></div>
+                      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))", gap: 10 }}>
+                        {(compData.screenshots || [])
+                          .filter(s => s.screenshotB64)
+                          .map((s, i) => {
+                            const color = COMPETITOR_COLORS[s.competitor] || "#888";
+                            return (
+                              <div key={i} style={{ background: T.card, border: `1px solid ${color}20`, borderTop: `2px solid ${color}`, borderRadius: 8, overflow: "hidden" }}>
+                                <div style={{ padding: "7px 10px", borderBottom: `1px solid ${color}15`, display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+                                  <span style={{ fontSize: 11, fontWeight: 800, color, fontFamily: T.mono }}>{s.competitor.toUpperCase()}</span>
+                                  <span style={{ fontSize: 8, color: T.txt3 }}>📘 Facebook</span>
+                                </div>
+                                <div onClick={() => setCompScreenshot(s.screenshotB64)} style={{ position: "relative", cursor: "zoom-in", overflow: "hidden" }}>
+                                  <img src={`data:image/jpeg;base64,${s.screenshotB64}`} alt={`${s.competitor} Facebook`}
+                                    style={{ width: "100%", display: "block", maxHeight: 160, objectFit: "cover", objectPosition: "top" }} />
+                                  <div style={{ position: "absolute", bottom: 4, right: 6, fontSize: 8, color: "#fff", background: "rgba(0,0,0,0.6)", padding: "1px 6px", borderRadius: 3 }}>🔍 Ver</div>
+                                </div>
+                              </div>
+                            );
+                          })}
+                      </div>
+                    </div>
+                  )}
+
                   {compData.opportunities?.length > 0 && (
-                    <div style={{ marginBottom: 12 }}>
-                      <div style={{ fontSize: 9, color: "#555", textTransform: "uppercase", letterSpacing: 1, fontWeight: 700, marginBottom: 8 }}>Oportunidades Reactivas ({compData.opportunities.length})</div>
+                    <div style={{ marginBottom: 14 }}>
+                      <div style={{ marginBottom: 8 }}><Label>Oportunidades Reactivas ({compData.opportunities.length})</Label></div>
                       {compData.opportunities.map((opp, i) => (
                         <OpportunityCard key={i} opp={opp} onNotion={() => setModal(oppToNotion(opp))} />
                       ))}
                     </div>
                   )}
-                  {/* RRSS screenshot lightbox */}
-                  {compScreenshot && (
-                    <div onClick={() => setCompScreenshot(null)} style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.85)", zIndex: 2000, display: "flex", alignItems: "center", justifyContent: "center", padding: 16 }}>
-                      <div style={{ position: "relative", maxWidth: "95vw", maxHeight: "90vh" }}>
-                        <img src={`data:image/jpeg;base64,${compScreenshot}`} alt="RRSS screenshot" style={{ maxWidth: "100%", maxHeight: "85vh", borderRadius: 10, border: "1px solid rgba(255,255,255,0.1)" }} />
-                        <button onClick={() => setCompScreenshot(null)} style={{ position: "absolute", top: -12, right: -12, width: 28, height: 28, borderRadius: "50%", background: "#222", border: "1px solid rgba(255,255,255,0.15)", color: "#aaa", fontSize: 14, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}>✕</button>
-                      </div>
-                    </div>
-                  )}
 
-                  <div style={{ fontSize: 9, color: "#555", textTransform: "uppercase", letterSpacing: 1, fontWeight: 700, marginBottom: 8 }}>Actividad por Competidor</div>
+                  <div style={{ marginBottom: 8 }}><Label>Actividad por Competidor</Label></div>
                   {compData.competitors?.map((comp) => (
                     <CompetitorCard
-                      key={comp.name}
-                      comp={comp}
+                      key={comp.name} comp={comp}
                       open={compExpanded === comp.name}
                       toggle={() => setCompExpanded(compExpanded === comp.name ? null : comp.name)}
                       screenshots={(compData.screenshots || [])
-                        .filter((s) => s.competitor === comp.name)
+                        .filter(s => s.competitor === comp.name)
                         .map(({ platform, screenshotB64 }) => ({ platform, screenshotB64 }))}
                       onScreenshot={setCompScreenshot}
                     />
                   ))}
                 </>
               )}
+              {compPhase === "error" && (
+                <div style={{ textAlign: "center", padding: "24px 20px" }}>
+                  <div style={{ fontSize: 11, color: T.red, marginBottom: 6 }}>⚠ {compMsg}</div>
+                  <button onClick={scanCompetitors} style={{ padding: "6px 16px", borderRadius: 7, border: `1px solid ${T.red}30`, background: `${T.red}0d`, color: T.red, fontSize: 11, cursor: "pointer" }}>Reintentar</button>
+                </div>
+              )}
             </div>
+          </Panel>
+        </div>
+      )}
+
+      {/* Screenshot lightbox (competitor) */}
+      {compScreenshot && (
+        <div onClick={() => setCompScreenshot(null)} style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.88)", zIndex: 2000, display: "flex", alignItems: "center", justifyContent: "center", padding: 16 }}>
+          <div style={{ position: "relative" }}>
+            <img src={`data:image/jpeg;base64,${compScreenshot}`} alt="RRSS screenshot" style={{ maxWidth: "92vw", maxHeight: "86vh", borderRadius: 10, border: `1px solid ${T.border}` }} />
+            <button onClick={() => setCompScreenshot(null)} style={{ position: "absolute", top: -12, right: -12, width: 28, height: 28, borderRadius: "50%", background: T.surface, border: `1px solid ${T.border}`, color: T.txt2, fontSize: 14, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}>✕</button>
           </div>
         </div>
       )}
 
-      {/* FOOTER */}
-      <div style={{ padding: "12px 16px", borderTop: "1px solid rgba(255,255,255,0.04)", textAlign: "center" }}>
-        <span style={{ fontSize: 9, color: "#333" }}>Trend Scout v1.0 · Blue Express × Copec Digital</span>
+      {/* ── FOOTER ── */}
+      <div style={{ padding: "10px 20px", borderTop: `1px solid ${T.border}`, display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+        <span style={{ fontSize: 9, color: T.txt3, fontFamily: T.mono }}>TREND SCOUT v2.0 · Blue Express × Copec</span>
+        <span style={{ fontSize: 9, color: T.txt3, fontFamily: T.mono }}>claude-sonnet-4-6</span>
       </div>
 
       {modal && <NotionModal campaign={modal.campaign} trend={modal.trend} onClose={() => setModal(null)} />}

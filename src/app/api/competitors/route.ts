@@ -7,10 +7,8 @@ import { launchBrowser } from "@/lib/browser";
 export const maxDuration = 120;
 
 const PROFILES = [
-  { competitor: "Chilexpress", platform: "Instagram", url: "https://www.instagram.com/chilexpress/" },
-  { competitor: "Chilexpress", platform: "X", url: "https://x.com/Chilexpress" },
-  { competitor: "Starken", platform: "Instagram", url: "https://www.instagram.com/starkencl/" },
-  { competitor: "Starken", platform: "X", url: "https://x.com/StarkenCL" },
+  { competitor: "Chilexpress", platform: "Facebook", url: "https://www.facebook.com/Chilexpress" },
+  { competitor: "Starken", platform: "Facebook", url: "https://www.facebook.com/StarkenCL" },
 ];
 
 async function takeProfileScreenshots() {
@@ -98,15 +96,15 @@ async function analyzeWithWebSearch(today: string) {
       messages: [
         {
           role: "user",
-          content: `Hoy es ${today}. Analiza la actividad reciente en redes sociales de los principales competidores logísticos chilenos de Blue Express.
+          content: `Hoy es ${today}. Analiza la actividad reciente en Facebook y redes sociales de los principales competidores logísticos chilenos de Blue Express.
 
 Haz estas búsquedas:
-1. "Chilexpress Instagram publicaciones recientes 2025" — busca sus últimas campañas y posts
-2. "Chilexpress Twitter X Chile 2025" — busca tweets recientes y promociones
-3. "Starken Instagram publicaciones recientes 2025" — busca sus últimas campañas
-4. "Starken Twitter X Chile 2025" — busca tweets recientes y promociones
-5. "Chilexpress promociones descuentos ${today}" — busca ofertas activas
-6. "Starken promociones descuentos ${today}" — busca ofertas activas
+1. "Chilexpress Facebook publicaciones recientes 2025" — busca sus últimas campañas y posts en Facebook
+2. "Starken Facebook publicaciones recientes 2025" — busca sus últimas campañas en Facebook
+3. "Chilexpress promociones descuentos Chile ${today}" — busca ofertas activas
+4. "Starken promociones descuentos Chile ${today}" — busca ofertas activas
+5. "Chilexpress anuncios Facebook Meta 2025" — busca anuncios activos
+6. "Starken anuncios Facebook Meta 2025" — busca anuncios activos
 
 Con lo que encuentres, genera EXACTAMENTE este JSON sin markdown ni texto adicional:
 {
@@ -120,7 +118,7 @@ Con lo que encuentres, genera EXACTAMENTE este JSON sin markdown ni texto adicio
       "posts": [
         {
           "competitor": "Chilexpress",
-          "platform": "Instagram" | "X",
+          "platform": "Facebook" | "Instagram" | "X",
           "type": "promo" | "campaña" | "orgánico" | "branding",
           "summary": "descripción del contenido del post (1-2 frases)",
           "copy": "texto del post encontrado o null",
