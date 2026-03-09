@@ -39,7 +39,7 @@ export async function launchBrowser(): Promise<Browser> {
     return chromium.launch({
       executablePath,
       args: [...LAUNCH_ARGS, ...chromiumMin.args],
-      headless: chromiumMin.headless as boolean,
+      headless: true,
     });
   }
 
