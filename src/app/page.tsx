@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { BRAND, COMPETITORS, TEAM, getTasksForChannel, offsetDate } from "@/lib/constants";
-import type { ScoredTrend, Campaign, CompetitorAnalysis, CompetitorPost, CompetitiveOpportunity } from "@/lib/constants";
+import type { ScoredTrend, Campaign, CompetitorAnalysis, CompetitorPost, CompetitiveOpportunity, MetaAd, MetaAdsCompetitorResult } from "@/lib/constants";
 
 /* ═══════════════════ API CALLS (to our proxy routes) ═══════════════════ */
 
@@ -38,6 +38,13 @@ async function apiNotion(payload: any): Promise<any> {
     body: JSON.stringify(payload),
   });
   return res.json();
+}
+
+async function apiMetaAds(): Promise<MetaAdsCompetitorResult[]> {
+  const res = await fetch("/api/meta-ads", { method: "POST" });
+  const data = await res.json();
+  if (data.error) throw new Error(data.error);
+  return data.results || [];
 }
 
 async function apiCompetitors(): Promise<CompetitorAnalysis> {
@@ -435,6 +442,13 @@ export default function Dashboard() {
   const [compMsg, setCompMsg] = useState("");
   const [compExpanded, setCompExpanded] = useState<string | null>(null);
 
+  // Meta Ads state
+  const [metaAds, setMetaAds] = useState<MetaAdsCompetitorResult[]>([]);
+  const [metaPhase, setMetaPhase] = useState<"idle" | "fetching" | "done" | "error">("idle");
+  const [metaMsg, setMetaMsg] = useState("");
+  const [metaScreenshot, setMetaScreenshot] = useState<string | null>(null); // which competitor screenshot to expand
+
+
   const scanCompetitors = async () => {
     setCompPhase("fetching");
     setCompMsg("Escaneando competidores con IA...");
@@ -448,6 +462,23 @@ export default function Dashboard() {
     } catch (e: any) {
       setCompPhase("error");
       setCompMsg(e.message || "Error desconocido");
+    }
+  };
+
+  const scanMetaAds = async () => {
+    setMetaPhase("fetching");
+    setMetaMsg("Abriendo Meta Ads Library con Playwright...");
+    setMetaAds([]);
+    setMetaScreenshot(null);
+    try {
+      const results = await apiMetaAds();
+      setMetaAds(results);
+      setMetaPhase("done");
+      const total = results.reduce((a, r) => a + r.ads.length, 0);
+      setMetaMsg(`${total} anuncios detectados`);
+    } catch (e: any) {
+      setMetaPhase("error");
+      setMetaMsg(e.message || "Error al escanear Meta Ads");
     }
   };
 
@@ -566,22 +597,22 @@ export default function Dashboard() {
         )}
 
         {activeTab === "competencia" && (
-          <>
-            <button onClick={scanCompetitors} disabled={compPhase === "fetching"} style={{
-              width: "100%", padding: 12, borderRadius: 10, border: "none",
-              cursor: compPhase === "fetching" ? "not-allowed" : "pointer",
-              background: compPhase === "fetching" ? "rgba(255,255,255,0.05)" : "linear-gradient(135deg, #550000, #991b1b)",
-              color: compPhase === "fetching" ? "#888" : "#fff",
-              fontSize: 14, fontWeight: 700, marginBottom: 10,
-            }}>
-              {compPhase === "idle" ? "🏁 Escanear competencia ahora" : compPhase === "fetching" ? "🧠 Escaneando con IA..." : compPhase === "error" ? "🔄 Reintentar" : "🏁 Nuevo escaneo de competencia"}
+          <div style={{ display: "flex", gap: 6 }}>
+            <button
+              onClick={scanMetaAds}
+              disabled={metaPhase === "fetching"}
+              style={{ flex: 1, padding: "10px 6px", borderRadius: 10, border: "1px solid rgba(24,119,242,0.3)", cursor: metaPhase === "fetching" ? "not-allowed" : "pointer", background: metaPhase === "fetching" ? "rgba(255,255,255,0.05)" : "rgba(24,119,242,0.12)", color: metaPhase === "fetching" ? "#888" : "#1877f2", fontSize: 12, fontWeight: 700 }}
+            >
+              {metaPhase === "idle" ? "📲 Meta Ads Library" : metaPhase === "fetching" ? "🌐 Abriendo..." : metaPhase === "error" ? "🔄 Reintentar Meta" : "🔄 Actualizar Meta"}
             </button>
-            {compMsg && (
-              <div style={{ fontSize: 11, color: compPhase === "error" ? "#f87171" : "#4d94ff", textAlign: "center", marginBottom: 8, padding: "6px 10px", background: "rgba(0,102,255,0.05)", borderRadius: 8 }}>
-                {compMsg}
-              </div>
-            )}
-          </>
+            <button
+              onClick={scanCompetitors}
+              disabled={compPhase === "fetching"}
+              style={{ flex: 1, padding: "10px 6px", borderRadius: 10, border: "1px solid rgba(153,27,27,0.3)", cursor: compPhase === "fetching" ? "not-allowed" : "pointer", background: compPhase === "fetching" ? "rgba(255,255,255,0.05)" : "rgba(153,27,27,0.15)", color: compPhase === "fetching" ? "#888" : "#f87171", fontSize: 12, fontWeight: 700 }}
+            >
+              {compPhase === "idle" ? "🏁 Análisis IA" : compPhase === "fetching" ? "🧠 Analizando..." : compPhase === "error" ? "🔄 Reintentar IA" : "🔄 Actualizar IA"}
+            </button>
+          </div>
         )}
 
       </div>
@@ -697,47 +728,188 @@ export default function Dashboard() {
       {/* ── COMPETENCIA TAB ── */}
       {activeTab === "competencia" && (
         <div style={{ padding: "12px 10px" }}>
-          {compPhase === "idle" && (
-            <div style={{ textAlign: "center", padding: "60px 20px" }}>
-              <div style={{ fontSize: 48, marginBottom: 16 }}>🏁</div>
-              <div style={{ fontSize: 16, fontWeight: 700, color: "#555", marginBottom: 8 }}>Monitor de Competencia</div>
-              <div style={{ fontSize: 12, color: "#444", maxWidth: 300, margin: "0 auto" }}>Detecta campañas activas de {COMPETITORS.map((c) => c.name).join(", ")} y genera oportunidades reactivas para Blue Express.</div>
+          <style>{`@keyframes pulse{0%,100%{opacity:1}50%{opacity:0.5}}`}</style>
+
+          {/* ── META ADS LIBRARY PANEL ── */}
+          <div style={{ background: "rgba(24,119,242,0.04)", border: "1px solid rgba(24,119,242,0.18)", borderRadius: 14, overflow: "hidden", marginBottom: 14 }}>
+            {/* Header */}
+            <div style={{ padding: "12px 14px 10px", borderBottom: "1px solid rgba(24,119,242,0.1)", display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8 }}>
+              <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                <div style={{ width: 30, height: 30, borderRadius: 7, background: "rgba(24,119,242,0.15)", border: "1px solid rgba(24,119,242,0.3)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 16 }}>📲</div>
+                <div>
+                  <div style={{ fontSize: 13, fontWeight: 800, color: "#e5e5e5" }}>Meta Ads Library</div>
+                  <div style={{ fontSize: 9, color: "#555" }}>Anuncios activos en Facebook e Instagram · Playwright</div>
+                </div>
+              </div>
+              <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                {metaPhase === "done" && <span style={{ fontSize: 9, color: "#1877f2", background: "rgba(24,119,242,0.1)", padding: "2px 7px", borderRadius: 10, fontWeight: 700 }}>{metaMsg}</span>}
+                {metaPhase === "error" && <span style={{ fontSize: 9, color: "#f87171", maxWidth: 100, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{metaMsg}</span>}
+                <button
+                  onClick={scanMetaAds}
+                  disabled={metaPhase === "fetching"}
+                  style={{ padding: "5px 12px", borderRadius: 8, fontSize: 10, fontWeight: 700, cursor: metaPhase === "fetching" ? "not-allowed" : "pointer", background: metaPhase === "fetching" ? "rgba(255,255,255,0.04)" : "rgba(24,119,242,0.12)", border: "1px solid rgba(24,119,242,0.3)", color: metaPhase === "fetching" ? "#666" : "#1877f2", whiteSpace: "nowrap" }}
+                >
+                  {metaPhase === "idle" ? "Escanear" : metaPhase === "fetching" ? "🌐 Abriendo..." : metaPhase === "error" ? "🔄 Reintentar" : "🔄 Actualizar"}
+                </button>
+              </div>
             </div>
-          )}
-          {compPhase === "fetching" && (
-            <div style={{ textAlign: "center", padding: "60px 20px" }}>
-              <div style={{ fontSize: 48, marginBottom: 16, animation: "pulse 1.5s ease-in-out infinite" }}>🧠</div>
-              <div style={{ fontSize: 14, fontWeight: 700, color: "#4d94ff" }}>Escaneando y analizando competidores...</div>
-              <style>{`@keyframes pulse{0%,100%{opacity:1}50%{opacity:0.5}}`}</style>
-            </div>
-          )}
-          {compPhase === "done" && compData && (
-            <>
-              {/* Summary */}
-              {compData.summary && (
-                <div style={{ background: "rgba(255,255,255,0.02)", border: "1px solid rgba(255,255,255,0.07)", borderRadius: 10, padding: 12, marginBottom: 12 }}>
-                  <div style={{ fontSize: 9, color: "#555", textTransform: "uppercase", letterSpacing: 1, fontWeight: 700, marginBottom: 6 }}>Panorama Competitivo</div>
-                  <p style={{ fontSize: 12, color: "#ccc", margin: 0, lineHeight: 1.5 }}>{compData.summary}</p>
+
+            {/* Body */}
+            <div style={{ padding: "10px" }}>
+              {metaPhase === "idle" && (
+                <div style={{ textAlign: "center", padding: "24px 20px" }}>
+                  <div style={{ fontSize: 28, marginBottom: 8 }}>📲</div>
+                  <div style={{ fontSize: 12, fontWeight: 700, color: "#444", marginBottom: 4 }}>Chilexpress · Starken en Meta Ads</div>
+                  <div style={{ fontSize: 10, color: "#333" }}>Playwright abre la Biblioteca de Anuncios, captura screenshots y usa Claude vision para extraer anuncios activos</div>
                 </div>
               )}
+              {metaPhase === "fetching" && (
+                <div style={{ textAlign: "center", padding: "24px 20px" }}>
+                  <div style={{ fontSize: 28, marginBottom: 8, animation: "pulse 1.5s ease-in-out infinite" }}>🌐</div>
+                  <div style={{ fontSize: 12, fontWeight: 700, color: "#1877f2", marginBottom: 4 }}>{metaMsg}</div>
+                  <div style={{ fontSize: 10, color: "#555" }}>Esto puede tardar ~60s — Playwright navega Meta Ads Library</div>
+                </div>
+              )}
+              {metaPhase === "done" && metaAds.length > 0 && (
+                <>
+                  {/* Screenshot lightbox */}
+                  {metaScreenshot && (
+                    <div onClick={() => setMetaScreenshot(null)} style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.85)", zIndex: 2000, display: "flex", alignItems: "center", justifyContent: "center", padding: 16 }}>
+                      <div style={{ position: "relative", maxWidth: "95vw", maxHeight: "90vh" }}>
+                        <img src={`data:image/jpeg;base64,${metaScreenshot}`} alt="Meta Ads screenshot" style={{ maxWidth: "100%", maxHeight: "85vh", borderRadius: 10, border: "1px solid rgba(255,255,255,0.1)" }} />
+                        <button onClick={() => setMetaScreenshot(null)} style={{ position: "absolute", top: -12, right: -12, width: 28, height: 28, borderRadius: "50%", background: "#222", border: "1px solid rgba(255,255,255,0.15)", color: "#aaa", fontSize: 14, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}>✕</button>
+                      </div>
+                    </div>
+                  )}
 
-              {/* Opportunities */}
-              {compData.opportunities?.length > 0 && (
-                <div style={{ marginBottom: 16 }}>
-                  <div style={{ fontSize: 9, color: "#555", textTransform: "uppercase", letterSpacing: 1, fontWeight: 700, marginBottom: 8 }}>Oportunidades Reactivas ({compData.opportunities.length})</div>
-                  {compData.opportunities.map((opp, i) => (
-                    <OpportunityCard key={i} opp={opp} onNotion={() => setModal(oppToNotion(opp))} />
+                  {/* Competitor columns */}
+                  <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
+                    {metaAds.map((result) => {
+                      const color = result.competitor === "Chilexpress" ? "#FF6B00" : "#E31837";
+                      return (
+                        <div key={result.competitor} style={{ background: `${color}08`, border: `1px solid ${color}22`, borderRadius: 10, overflow: "hidden" }}>
+                          {/* Competitor header */}
+                          <div style={{ padding: "8px 10px", borderBottom: `1px solid ${color}18`, display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+                            <span style={{ fontSize: 11, fontWeight: 800, color }}>{result.competitor}</span>
+                            <span style={{ fontSize: 8, color: "#555" }}>{result.ads.length} anuncios</span>
+                          </div>
+
+                          {/* Screenshot thumbnail */}
+                          {result.screenshotB64 && (
+                            <div
+                              onClick={() => setMetaScreenshot(result.screenshotB64)}
+                              style={{ position: "relative", cursor: "zoom-in", overflow: "hidden", borderBottom: `1px solid ${color}12` }}
+                            >
+                              <img
+                                src={`data:image/jpeg;base64,${result.screenshotB64}`}
+                                alt={`${result.competitor} Meta Ads`}
+                                style={{ width: "100%", display: "block", maxHeight: 130, objectFit: "cover", objectPosition: "top" }}
+                              />
+                              <div style={{ position: "absolute", bottom: 4, right: 6, fontSize: 8, color: "#fff", background: "rgba(0,0,0,0.55)", padding: "1px 5px", borderRadius: 4 }}>🔍 Ver completo</div>
+                            </div>
+                          )}
+
+                          {/* Error state */}
+                          {result.error && (
+                            <div style={{ padding: "8px 10px" }}>
+                              <span style={{ fontSize: 9, color: "#f87171" }}>⚠️ {result.error.slice(0, 80)}</span>
+                            </div>
+                          )}
+
+                          {/* Ad cards */}
+                          <div style={{ padding: "6px 8px" }}>
+                            {result.ads.length === 0 && !result.error && (
+                              <div style={{ fontSize: 10, color: "#444", padding: "8px 0", textAlign: "center" }}>Sin anuncios detectados</div>
+                            )}
+                            {result.ads.map((ad: MetaAd) => (
+                              <div key={ad.id} style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.05)", borderRadius: 7, padding: "8px 9px", marginBottom: 6 }}>
+                                <div style={{ display: "flex", gap: 4, flexWrap: "wrap", marginBottom: 4 }}>
+                                  <span style={{ fontSize: 8, fontWeight: 700, color, background: `${color}15`, padding: "1px 5px", borderRadius: 4 }}>{ad.platform || "Meta"}</span>
+                                  {ad.creativeType && <span style={{ fontSize: 8, color: "#666", background: "rgba(255,255,255,0.04)", padding: "1px 5px", borderRadius: 4 }}>{ad.creativeType}</span>}
+                                  {ad.activeFrom && <span style={{ fontSize: 8, color: "#555" }}>desde {ad.activeFrom}</span>}
+                                </div>
+                                <p style={{ fontSize: 10, color: "#bbb", margin: "0 0 4px", lineHeight: 1.4 }}>{ad.copy}</p>
+                                {ad.cta && (
+                                  <span style={{ fontSize: 8, fontWeight: 700, color: "#1877f2", background: "rgba(24,119,242,0.1)", padding: "1px 6px", borderRadius: 4, border: "1px solid rgba(24,119,242,0.2)" }}>{ad.cta}</span>
+                                )}
+                              </div>
+                            ))}
+                          </div>
+
+                          {/* Scan timestamp */}
+                          <div style={{ padding: "4px 10px 8px", fontSize: 8, color: "#444" }}>
+                            Escaneado: {new Date(result.scannedAt).toLocaleTimeString("es-CL")}
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </>
+              )}
+            </div>
+          </div>
+
+          {/* ── AI ANALYSIS PANEL ── */}
+          <div style={{ background: "rgba(255,255,255,0.01)", border: "1px solid rgba(255,255,255,0.06)", borderRadius: 14, overflow: "hidden", marginBottom: 14 }}>
+            <div style={{ padding: "12px 14px 10px", borderBottom: "1px solid rgba(255,255,255,0.05)", display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8 }}>
+              <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                <div style={{ width: 30, height: 30, borderRadius: 7, background: "rgba(248,71,71,0.1)", border: "1px solid rgba(248,71,71,0.2)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 16 }}>🏁</div>
+                <div>
+                  <div style={{ fontSize: 13, fontWeight: 800, color: "#e5e5e5" }}>Análisis IA de Competidores</div>
+                  <div style={{ fontSize: 9, color: "#555" }}>RRSS + web · Claude con web_search</div>
+                </div>
+              </div>
+              <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                {compPhase === "done" && <span style={{ fontSize: 9, color: "#f87171", background: "rgba(248,71,71,0.08)", padding: "2px 7px", borderRadius: 10, fontWeight: 700 }}>{compMsg}</span>}
+                {compPhase === "error" && <span style={{ fontSize: 9, color: "#f87171" }}>{compMsg}</span>}
+                <button
+                  onClick={scanCompetitors}
+                  disabled={compPhase === "fetching"}
+                  style={{ padding: "5px 12px", borderRadius: 8, fontSize: 10, fontWeight: 700, cursor: compPhase === "fetching" ? "not-allowed" : "pointer", background: compPhase === "fetching" ? "rgba(255,255,255,0.04)" : "rgba(153,27,27,0.2)", border: "1px solid rgba(153,27,27,0.3)", color: compPhase === "fetching" ? "#666" : "#f87171", whiteSpace: "nowrap" }}
+                >
+                  {compPhase === "idle" ? "Escanear" : compPhase === "fetching" ? "🧠 Analizando..." : compPhase === "error" ? "🔄 Reintentar" : "🔄 Actualizar"}
+                </button>
+              </div>
+            </div>
+
+            <div style={{ padding: "10px" }}>
+              {compPhase === "idle" && (
+                <div style={{ textAlign: "center", padding: "24px 20px" }}>
+                  <div style={{ fontSize: 28, marginBottom: 8 }}>🏁</div>
+                  <div style={{ fontSize: 12, fontWeight: 700, color: "#444", marginBottom: 4 }}>Análisis IA de Competidores</div>
+                  <div style={{ fontSize: 10, color: "#333" }}>Claude escanea RRSS y web de {COMPETITORS.map((c) => c.name).join(", ")} y genera oportunidades reactivas</div>
+                </div>
+              )}
+              {compPhase === "fetching" && (
+                <div style={{ textAlign: "center", padding: "24px 20px" }}>
+                  <div style={{ fontSize: 28, marginBottom: 8, animation: "pulse 1.5s ease-in-out infinite" }}>🧠</div>
+                  <div style={{ fontSize: 12, fontWeight: 700, color: "#4d94ff" }}>Escaneando y analizando competidores...</div>
+                </div>
+              )}
+              {compPhase === "done" && compData && (
+                <>
+                  {compData.summary && (
+                    <div style={{ background: "rgba(255,255,255,0.02)", border: "1px solid rgba(255,255,255,0.07)", borderRadius: 10, padding: 12, marginBottom: 12 }}>
+                      <div style={{ fontSize: 9, color: "#555", textTransform: "uppercase", letterSpacing: 1, fontWeight: 700, marginBottom: 6 }}>Panorama Competitivo</div>
+                      <p style={{ fontSize: 12, color: "#ccc", margin: 0, lineHeight: 1.5 }}>{compData.summary}</p>
+                    </div>
+                  )}
+                  {compData.opportunities?.length > 0 && (
+                    <div style={{ marginBottom: 12 }}>
+                      <div style={{ fontSize: 9, color: "#555", textTransform: "uppercase", letterSpacing: 1, fontWeight: 700, marginBottom: 8 }}>Oportunidades Reactivas ({compData.opportunities.length})</div>
+                      {compData.opportunities.map((opp, i) => (
+                        <OpportunityCard key={i} opp={opp} onNotion={() => setModal(oppToNotion(opp))} />
+                      ))}
+                    </div>
+                  )}
+                  <div style={{ fontSize: 9, color: "#555", textTransform: "uppercase", letterSpacing: 1, fontWeight: 700, marginBottom: 8 }}>Actividad por Competidor</div>
+                  {compData.competitors?.map((comp) => (
+                    <CompetitorCard key={comp.name} comp={comp} open={compExpanded === comp.name} toggle={() => setCompExpanded(compExpanded === comp.name ? null : comp.name)} />
                   ))}
-                </div>
+                </>
               )}
-
-              {/* Competitor summary cards */}
-              <div style={{ fontSize: 9, color: "#555", textTransform: "uppercase", letterSpacing: 1, fontWeight: 700, marginBottom: 8 }}>Actividad por Competidor</div>
-              {compData.competitors?.map((comp) => (
-                <CompetitorCard key={comp.name} comp={comp} open={compExpanded === comp.name} toggle={() => setCompExpanded(compExpanded === comp.name ? null : comp.name)} />
-              ))}
-            </>
-          )}
+            </div>
+          </div>
         </div>
       )}
 

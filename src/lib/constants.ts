@@ -157,3 +157,21 @@ export interface CompetitorAnalysis {
   opportunities: CompetitiveOpportunity[];
   summary: string;
 }
+
+export interface MetaAd {
+  id: string;
+  advertiser: string;
+  copy: string;
+  cta: string | null;
+  platform: string;
+  creativeType: string;
+  activeFrom: string | null;
+}
+
+export interface MetaAdsCompetitorResult {
+  competitor: string;
+  ads: MetaAd[];
+  screenshotB64: string | null;
+  scannedAt: string;
+  error?: string;
+}
