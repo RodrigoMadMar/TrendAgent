@@ -6,8 +6,15 @@ import type { ScoredTrend, Campaign, CompetitorAnalysis, CompetitorPost, Competi
 
 /* ═══════════════════ API CALLS (to our proxy routes) ═══════════════════ */
 
-async function apiScan(): Promise<any[]> {
-  const res = await fetch("/api/scan", { method: "POST" });
+async function apiScanTwitter(): Promise<any[]> {
+  const res = await fetch("/api/scan-twitter", { method: "POST" });
+  const data = await res.json();
+  if (data.error) throw new Error(data.error);
+  return data.trends || [];
+}
+
+async function apiScanGoogle(): Promise<any[]> {
+  const res = await fetch("/api/scan-google", { method: "POST" });
   const data = await res.json();
   if (data.error) throw new Error(data.error);
   return data.trends || [];
@@ -406,14 +413,20 @@ function TrendCard({ t, open, toggle, votes, onVote, onCreate }: {
 export default function Dashboard() {
   const [activeTab, setActiveTab] = useState<"tendencias" | "competencia">("tendencias");
 
-  // Tendencias state
-  const [trends, setTrends] = useState<ScoredTrend[]>([]);
-  const [phase, setPhase] = useState<"idle" | "fetching" | "scoring" | "done" | "error">("idle");
-  const [statusMsg, setStatusMsg] = useState("");
-  const [expanded, setExpanded] = useState<number | null>(null);
-  const [votes, setVotes] = useState<Set<string>>(new Set());
-  const [filter, setFilter] = useState("all");
-  const [sortBy, setSortBy] = useState("score");
+  // Twitter/X trends state
+  const [twitterTrends, setTwitterTrends] = useState<ScoredTrend[]>([]);
+  const [twitterPhase, setTwitterPhase] = useState<"idle" | "fetching" | "scoring" | "done" | "error">("idle");
+  const [twitterMsg, setTwitterMsg] = useState("");
+  const [twitterExpanded, setTwitterExpanded] = useState<number | null>(null);
+  const [twitterVotes, setTwitterVotes] = useState<Set<string>>(new Set());
+
+  // Google Trends state
+  const [googleTrends, setGoogleTrends] = useState<ScoredTrend[]>([]);
+  const [googlePhase, setGooglePhase] = useState<"idle" | "fetching" | "scoring" | "done" | "error">("idle");
+  const [googleMsg, setGoogleMsg] = useState("");
+  const [googleExpanded, setGoogleExpanded] = useState<number | null>(null);
+  const [googleVotes, setGoogleVotes] = useState<Set<string>>(new Set());
+
   const [modal, setModal] = useState<{ campaign: Campaign; trend: ScoredTrend } | null>(null);
 
   // Competencia state
@@ -443,38 +456,54 @@ export default function Dashboard() {
     trend: { id: 0, title: `Competencia: ${opp.trigger}`, source: "Competencia", sourceIcon: "🏁", category: "Competencia", summary: opp.suggestion, relevanceScore: 0, viralScore: 0, brandFitScore: 0, timingWindow: "—", effort: "M", volume: 0, velocity: "—", timestamp: "Ahora", campaigns: [] },
   });
 
-  const scan = async () => {
-    setPhase("fetching");
-    setStatusMsg("Scrapeando tendencias de Chile...");
-    setTrends([]);
+  const scanTwitter = async () => {
+    setTwitterPhase("fetching");
+    setTwitterMsg("Obteniendo tendencias de trends24.in/chile...");
+    setTwitterTrends([]);
     try {
-      const raw = await apiScan();
-      if (!raw.length) { setPhase("error"); setStatusMsg("No se encontraron tendencias."); return; }
-      setPhase("scoring");
-      setStatusMsg(`Analizando ${raw.length} tendencias con Claude...`);
+      const raw = await apiScanTwitter();
+      if (!raw.length) { setTwitterPhase("error"); setTwitterMsg("Sin tendencias en trends24.in"); return; }
+      setTwitterPhase("scoring");
+      setTwitterMsg(`Analizando ${raw.length} tendencias con Claude...`);
       const scored = await apiScore(raw);
-      setTrends(scored);
-      setPhase("done");
-      setStatusMsg(`${scored.length} tendencias listas`);
+      setTwitterTrends(scored);
+      setTwitterPhase("done");
+      setTwitterMsg(`${scored.length} tendencias`);
     } catch (e: any) {
-      setPhase("error");
-      setStatusMsg(e.message || "Error desconocido");
+      setTwitterPhase("error");
+      setTwitterMsg(e.message || "Error desconocido");
     }
   };
 
-  const vote = (id: string) => setVotes((p) => { const n = new Set(p); n.has(id) ? n.delete(id) : n.add(id); return n; });
-  const categories = ["all", ...new Set(trends.map((t) => t.category).filter(Boolean))];
-  const filtered = trends
-    .filter((t) => filter === "all" || t.category === filter)
-    .sort((a, b) => {
+  const scanGoogle = async () => {
+    setGooglePhase("fetching");
+    setGoogleMsg("Obteniendo búsquedas de Google Trends Chile...");
+    setGoogleTrends([]);
+    try {
+      const raw = await apiScanGoogle();
+      if (!raw.length) { setGooglePhase("error"); setGoogleMsg("Sin datos de Google Trends"); return; }
+      setGooglePhase("scoring");
+      setGoogleMsg(`Analizando ${raw.length} búsquedas con Claude...`);
+      const scored = await apiScore(raw);
+      setGoogleTrends(scored);
+      setGooglePhase("done");
+      setGoogleMsg(`${scored.length} búsquedas`);
+    } catch (e: any) {
+      setGooglePhase("error");
+      setGoogleMsg(e.message || "Error desconocido");
+    }
+  };
+
+  const voteTwitter = (id: string) => setTwitterVotes((p) => { const n = new Set(p); n.has(id) ? n.delete(id) : n.add(id); return n; });
+  const voteGoogle = (id: string) => setGoogleVotes((p) => { const n = new Set(p); n.has(id) ? n.delete(id) : n.add(id); return n; });
+
+  const sortByScore = (arr: ScoredTrend[]) =>
+    [...arr].sort((a, b) => {
       const sc = (t: ScoredTrend) => ((t.relevanceScore || 0) + (t.viralScore || 0) + (t.brandFitScore || 0)) / 3;
-      if (sortBy === "score") return sc(b) - sc(a);
-      if (sortBy === "volume") return (b.volume || 0) - (a.volume || 0);
-      return (b.brandFitScore || 0) - (a.brandFitScore || 0);
+      return sc(b) - sc(a);
     });
 
-  const totalIdeas = trends.reduce((a, t) => a + (t.campaigns || []).length, 0);
-  const avg = trends.length ? (trends.reduce((a, t) => a + ((t.relevanceScore || 0) + (t.viralScore || 0) + (t.brandFitScore || 0)) / 3, 0) / trends.length).toFixed(1) : "—";
+  const anyLive = twitterPhase === "done" || googlePhase === "done";
 
   return (
     <div style={{ minHeight: "100vh", background: "#0a0a0a", color: "#e5e5e5", fontFamily: "'DM Sans', -apple-system, sans-serif", maxWidth: 720, margin: "0 auto" }}>
@@ -487,7 +516,7 @@ export default function Dashboard() {
             <span style={{ color: "#fff" }}>Trend Scout</span>
             <span style={{ color: "#0066ff", marginLeft: 5 }}>Agent</span>
           </h1>
-          {(phase === "done" || compPhase === "done") && <span style={{ fontSize: 8, color: "#34d399", background: "rgba(52,211,153,0.15)", padding: "2px 7px", borderRadius: 12, fontWeight: 700 }}>LIVE</span>}
+          {(anyLive || compPhase === "done") && <span style={{ fontSize: 8, color: "#34d399", background: "rgba(52,211,153,0.15)", padding: "2px 7px", borderRadius: 12, fontWeight: 700 }}>LIVE</span>}
         </div>
         <p style={{ fontSize: 10, color: "#555", margin: "0 2px 2px" }}>Scraping real · Scoring IA · Push a Notion · Blue Express × Copec</p>
         <p style={{ fontSize: 10, color: "#4d94ff", margin: "0 0 10px", fontWeight: 600 }}>Líder de Negocio: Rodrigo Madariaga</p>
@@ -504,22 +533,36 @@ export default function Dashboard() {
         </div>
 
         {activeTab === "tendencias" && (
-          <>
-            <button onClick={scan} disabled={phase === "fetching" || phase === "scoring"} style={{
-              width: "100%", padding: 12, borderRadius: 10, border: "none",
-              cursor: phase === "fetching" || phase === "scoring" ? "not-allowed" : "pointer",
-              background: phase === "fetching" || phase === "scoring" ? "rgba(255,255,255,0.05)" : "linear-gradient(135deg, #0044cc, #0066ff)",
-              color: phase === "fetching" || phase === "scoring" ? "#888" : "#fff",
-              fontSize: 14, fontWeight: 700, marginBottom: 10,
-            }}>
-              {phase === "idle" ? "🔍 Escanear tendencias ahora" : phase === "fetching" ? "📡 Buscando..." : phase === "scoring" ? "🧠 Scoring con IA..." : phase === "error" ? "🔄 Reintentar" : "🔍 Nuevo escaneo"}
+          <div style={{ display: "flex", gap: 6 }}>
+            <button
+              onClick={scanTwitter}
+              disabled={twitterPhase === "fetching" || twitterPhase === "scoring"}
+              style={{
+                flex: 1, padding: "10px 6px", borderRadius: 10,
+                border: "1px solid rgba(29,155,240,0.3)",
+                cursor: twitterPhase === "fetching" || twitterPhase === "scoring" ? "not-allowed" : "pointer",
+                background: twitterPhase === "fetching" || twitterPhase === "scoring" ? "rgba(255,255,255,0.05)" : "rgba(29,155,240,0.15)",
+                color: twitterPhase === "fetching" || twitterPhase === "scoring" ? "#888" : "#1d9bf0",
+                fontSize: 12, fontWeight: 700,
+              }}
+            >
+              {twitterPhase === "idle" ? "𝕏 Escanear Twitter" : twitterPhase === "fetching" ? "📡 Buscando..." : twitterPhase === "scoring" ? "🧠 Scoring..." : twitterPhase === "error" ? "🔄 Reintentar 𝕏" : "🔄 Actualizar 𝕏"}
             </button>
-            {statusMsg && (
-              <div style={{ fontSize: 11, color: phase === "error" ? "#f87171" : "#4d94ff", textAlign: "center", marginBottom: 8, padding: "6px 10px", background: "rgba(0,102,255,0.05)", borderRadius: 8 }}>
-                {statusMsg}
-              </div>
-            )}
-          </>
+            <button
+              onClick={scanGoogle}
+              disabled={googlePhase === "fetching" || googlePhase === "scoring"}
+              style={{
+                flex: 1, padding: "10px 6px", borderRadius: 10,
+                border: "1px solid rgba(52,211,153,0.25)",
+                cursor: googlePhase === "fetching" || googlePhase === "scoring" ? "not-allowed" : "pointer",
+                background: googlePhase === "fetching" || googlePhase === "scoring" ? "rgba(255,255,255,0.05)" : "rgba(52,211,153,0.1)",
+                color: googlePhase === "fetching" || googlePhase === "scoring" ? "#888" : "#34d399",
+                fontSize: 12, fontWeight: 700,
+              }}
+            >
+              {googlePhase === "idle" ? "🔍 Escanear Google" : googlePhase === "fetching" ? "📡 Buscando..." : googlePhase === "scoring" ? "🧠 Scoring..." : googlePhase === "error" ? "🔄 Reintentar Google" : "🔄 Actualizar Google"}
+            </button>
+          </div>
         )}
 
         {activeTab === "competencia" && (
@@ -541,49 +584,10 @@ export default function Dashboard() {
           </>
         )}
 
-        {activeTab === "tendencias" && trends.length > 0 && (
-          <>
-            <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 6, marginBottom: 12 }}>
-              {[
-                { v: trends.length, l: "Trends", i: "📡" },
-                { v: totalIdeas, l: "Ideas", i: "💡" },
-                { v: votes.size, l: "Votos", i: "🗳️" },
-                { v: avg, l: "Avg", i: "⭐" },
-              ].map((s, i) => (
-                <div key={i} style={{ textAlign: "center", padding: "6px 2px", background: "rgba(255,255,255,0.02)", borderRadius: 8, border: "1px solid rgba(255,255,255,0.05)" }}>
-                  <div style={{ fontSize: 9 }}>{s.i}</div>
-                  <div style={{ fontSize: 16, fontWeight: 800, color: "#fff", fontFamily: "'JetBrains Mono', monospace" }}>{s.v}</div>
-                  <div style={{ fontSize: 7, color: "#555", textTransform: "uppercase" }}>{s.l}</div>
-                </div>
-              ))}
-            </div>
-            <div style={{ display: "flex", gap: 5, overflowX: "auto", paddingBottom: 2, scrollbarWidth: "none" }}>
-              {categories.map((c) => (
-                <button key={c} onClick={() => setFilter(c)} style={{
-                  padding: "4px 11px", borderRadius: 14, whiteSpace: "nowrap", flexShrink: 0,
-                  border: filter === c ? "1px solid #0066ff" : "1px solid rgba(255,255,255,0.08)",
-                  background: filter === c ? "rgba(0,102,255,0.15)" : "transparent",
-                  color: filter === c ? "#4d94ff" : "#777", fontSize: 10, fontWeight: 600, cursor: "pointer",
-                }}>{c === "all" ? "Todas" : c}</button>
-              ))}
-            </div>
-            <div style={{ display: "flex", alignItems: "center", gap: 5, marginTop: 8 }}>
-              <span style={{ fontSize: 9, color: "#555" }}>Ordenar:</span>
-              {[{ k: "score", l: "Score" }, { k: "volume", l: "Volumen" }, { k: "brandFit", l: "Brand Fit" }].map((s) => (
-                <button key={s.k} onClick={() => setSortBy(s.k)} style={{
-                  padding: "3px 8px", borderRadius: 5,
-                  border: sortBy === s.k ? "1px solid rgba(0,102,255,0.3)" : "1px solid rgba(255,255,255,0.06)",
-                  background: sortBy === s.k ? "rgba(0,102,255,0.1)" : "transparent",
-                  color: sortBy === s.k ? "#4d94ff" : "#666", fontSize: 9, fontWeight: 600, cursor: "pointer",
-                }}>{s.l}</button>
-              ))}
-            </div>
-          </>
-        )}
       </div>
 
       {/* BRAND BAR */}
-      {activeTab === "tendencias" && trends.length > 0 && (
+      {activeTab === "tendencias" && anyLive && (
         <div style={{ padding: "8px 16px", borderBottom: "1px solid rgba(255,255,255,0.04)" }}>
           <div style={{ display: "flex", alignItems: "center", gap: 5, flexWrap: "wrap", padding: "6px 10px", background: "rgba(0,102,255,0.03)", borderRadius: 8, border: "1px solid rgba(0,102,255,0.06)" }}>
             <span style={{ fontSize: 8, color: "#555", fontWeight: 700, textTransform: "uppercase" }}>Marca</span>
@@ -595,29 +599,99 @@ export default function Dashboard() {
 
       {/* ── TENDENCIAS TAB ── */}
       {activeTab === "tendencias" && (
-        <>
-          {phase === "idle" && (
-            <div style={{ textAlign: "center", padding: "60px 20px" }}>
-              <div style={{ fontSize: 48, marginBottom: 16 }}>📡</div>
-              <div style={{ fontSize: 16, fontWeight: 700, color: "#555", marginBottom: 8 }}>Listo para escanear</div>
-              <div style={{ fontSize: 12, color: "#444", maxWidth: 300, margin: "0 auto" }}>Presiona el botón para buscar tendencias reales en X Chile, LimaLimón, farándula y Google Trends Chile.</div>
+        <div style={{ padding: "10px 10px 0" }}>
+          <style>{`@keyframes pulse{0%,100%{opacity:1}50%{opacity:0.5}}`}</style>
+
+          {/* ── TWITTER / X PANEL ── */}
+          <div style={{ background: "rgba(29,155,240,0.04)", border: "1px solid rgba(29,155,240,0.15)", borderRadius: 14, overflow: "hidden", marginBottom: 14 }}>
+            {/* Panel header */}
+            <div style={{ padding: "12px 14px 10px", borderBottom: "1px solid rgba(29,155,240,0.1)", display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8 }}>
+              <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                <div style={{ width: 30, height: 30, borderRadius: 7, background: "rgba(29,155,240,0.15)", border: "1px solid rgba(29,155,240,0.3)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 15, color: "#1d9bf0", fontWeight: 800 }}>𝕏</div>
+                <div>
+                  <div style={{ fontSize: 13, fontWeight: 800, color: "#e5e5e5" }}>Twitter / X Trending</div>
+                  <div style={{ fontSize: 9, color: "#555" }}>trends24.in/chile · Tiempo real</div>
+                </div>
+              </div>
+              <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                {twitterPhase === "done" && <span style={{ fontSize: 9, color: "#1d9bf0", background: "rgba(29,155,240,0.12)", padding: "2px 7px", borderRadius: 10, fontWeight: 700 }}>{twitterMsg}</span>}
+                {twitterPhase === "error" && <span style={{ fontSize: 9, color: "#f87171" }}>{twitterMsg}</span>}
+                <button
+                  onClick={scanTwitter}
+                  disabled={twitterPhase === "fetching" || twitterPhase === "scoring"}
+                  style={{ padding: "5px 12px", borderRadius: 8, fontSize: 10, fontWeight: 700, cursor: twitterPhase === "fetching" || twitterPhase === "scoring" ? "not-allowed" : "pointer", background: twitterPhase === "fetching" || twitterPhase === "scoring" ? "rgba(255,255,255,0.04)" : "rgba(29,155,240,0.12)", border: "1px solid rgba(29,155,240,0.25)", color: twitterPhase === "fetching" || twitterPhase === "scoring" ? "#666" : "#1d9bf0", whiteSpace: "nowrap" }}
+                >
+                  {twitterPhase === "idle" ? "Escanear" : twitterPhase === "fetching" ? "📡 Buscando..." : twitterPhase === "scoring" ? "🧠 Scoring..." : twitterPhase === "error" ? "🔄 Reintentar" : "🔄 Actualizar"}
+                </button>
+              </div>
             </div>
-          )}
-          {(phase === "fetching" || phase === "scoring") && (
-            <div style={{ textAlign: "center", padding: "60px 20px" }}>
-              <div style={{ fontSize: 48, marginBottom: 16, animation: "pulse 1.5s ease-in-out infinite" }}>{phase === "fetching" ? "📡" : "🧠"}</div>
-              <div style={{ fontSize: 14, fontWeight: 700, color: "#4d94ff" }}>{phase === "fetching" ? "Scrapeando fuentes..." : "Scoring con Claude..."}</div>
-              <style>{`@keyframes pulse{0%,100%{opacity:1}50%{opacity:0.5}}`}</style>
-            </div>
-          )}
-          {phase === "done" && (
-            <div style={{ padding: "12px 10px" }}>
-              {filtered.map((t) => (
-                <TrendCard key={t.id} t={t} open={expanded === t.id} toggle={() => setExpanded(expanded === t.id ? null : t.id)} votes={votes} onVote={vote} onCreate={(c, tr) => setModal({ campaign: c, trend: tr })} />
+
+            {/* Panel body */}
+            <div style={{ padding: twitterTrends.length > 0 ? "10px 10px 10px" : "0" }}>
+              {twitterPhase === "idle" && (
+                <div style={{ textAlign: "center", padding: "30px 20px" }}>
+                  <div style={{ fontSize: 32, marginBottom: 8 }}>𝕏</div>
+                  <div style={{ fontSize: 13, fontWeight: 700, color: "#444", marginBottom: 4 }}>Tendencias en Twitter Chile</div>
+                  <div style={{ fontSize: 11, color: "#333" }}>Datos en tiempo real desde trends24.in/chile</div>
+                </div>
+              )}
+              {(twitterPhase === "fetching" || twitterPhase === "scoring") && (
+                <div style={{ textAlign: "center", padding: "30px 20px" }}>
+                  <div style={{ fontSize: 32, marginBottom: 8, animation: "pulse 1.5s ease-in-out infinite" }}>{twitterPhase === "fetching" ? "📡" : "🧠"}</div>
+                  <div style={{ fontSize: 12, fontWeight: 700, color: "#1d9bf0" }}>{twitterPhase === "fetching" ? "Scrapeando trends24.in..." : "Analizando con Claude..."}</div>
+                </div>
+              )}
+              {twitterPhase === "done" && sortByScore(twitterTrends).map((t) => (
+                <TrendCard key={t.id} t={t} open={twitterExpanded === t.id} toggle={() => setTwitterExpanded(twitterExpanded === t.id ? null : t.id)} votes={twitterVotes} onVote={voteTwitter} onCreate={(c, tr) => setModal({ campaign: c, trend: tr })} />
               ))}
             </div>
-          )}
-        </>
+          </div>
+
+          {/* ── GOOGLE TRENDS PANEL ── */}
+          <div style={{ background: "rgba(52,211,153,0.03)", border: "1px solid rgba(52,211,153,0.15)", borderRadius: 14, overflow: "hidden", marginBottom: 14 }}>
+            {/* Panel header */}
+            <div style={{ padding: "12px 14px 10px", borderBottom: "1px solid rgba(52,211,153,0.1)", display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8 }}>
+              <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                <div style={{ width: 30, height: 30, borderRadius: 7, background: "rgba(52,211,153,0.12)", border: "1px solid rgba(52,211,153,0.25)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 15 }}>🔍</div>
+                <div>
+                  <div style={{ fontSize: 13, fontWeight: 800, color: "#e5e5e5" }}>Google Trends Chile</div>
+                  <div style={{ fontSize: 9, color: "#555" }}>trends.google.es · Últimas 24 horas</div>
+                </div>
+              </div>
+              <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                {googlePhase === "done" && <span style={{ fontSize: 9, color: "#34d399", background: "rgba(52,211,153,0.1)", padding: "2px 7px", borderRadius: 10, fontWeight: 700 }}>{googleMsg}</span>}
+                {googlePhase === "error" && <span style={{ fontSize: 9, color: "#f87171" }}>{googleMsg}</span>}
+                <button
+                  onClick={scanGoogle}
+                  disabled={googlePhase === "fetching" || googlePhase === "scoring"}
+                  style={{ padding: "5px 12px", borderRadius: 8, fontSize: 10, fontWeight: 700, cursor: googlePhase === "fetching" || googlePhase === "scoring" ? "not-allowed" : "pointer", background: googlePhase === "fetching" || googlePhase === "scoring" ? "rgba(255,255,255,0.04)" : "rgba(52,211,153,0.1)", border: "1px solid rgba(52,211,153,0.25)", color: googlePhase === "fetching" || googlePhase === "scoring" ? "#666" : "#34d399", whiteSpace: "nowrap" }}
+                >
+                  {googlePhase === "idle" ? "Escanear" : googlePhase === "fetching" ? "📡 Buscando..." : googlePhase === "scoring" ? "🧠 Scoring..." : googlePhase === "error" ? "🔄 Reintentar" : "🔄 Actualizar"}
+                </button>
+              </div>
+            </div>
+
+            {/* Panel body */}
+            <div style={{ padding: googleTrends.length > 0 ? "10px 10px 10px" : "0" }}>
+              {googlePhase === "idle" && (
+                <div style={{ textAlign: "center", padding: "30px 20px" }}>
+                  <div style={{ fontSize: 32, marginBottom: 8 }}>🔍</div>
+                  <div style={{ fontSize: 13, fontWeight: 700, color: "#444", marginBottom: 4 }}>Búsquedas trending en Chile</div>
+                  <div style={{ fontSize: 11, color: "#333" }}>Intención de búsqueda activa — últimas 24 horas</div>
+                </div>
+              )}
+              {(googlePhase === "fetching" || googlePhase === "scoring") && (
+                <div style={{ textAlign: "center", padding: "30px 20px" }}>
+                  <div style={{ fontSize: 32, marginBottom: 8, animation: "pulse 1.5s ease-in-out infinite" }}>{googlePhase === "fetching" ? "📡" : "🧠"}</div>
+                  <div style={{ fontSize: 12, fontWeight: 700, color: "#34d399" }}>{googlePhase === "fetching" ? "Consultando Google Trends RSS..." : "Analizando con Claude..."}</div>
+                </div>
+              )}
+              {googlePhase === "done" && sortByScore(googleTrends).map((t) => (
+                <TrendCard key={t.id} t={t} open={googleExpanded === t.id} toggle={() => setGoogleExpanded(googleExpanded === t.id ? null : t.id)} votes={googleVotes} onVote={voteGoogle} onCreate={(c, tr) => setModal({ campaign: c, trend: tr })} />
+              ))}
+            </div>
+          </div>
+        </div>
       )}
 
       {/* ── COMPETENCIA TAB ── */}
