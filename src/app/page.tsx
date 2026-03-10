@@ -6,29 +6,11 @@ import type { ScoredTrend, Campaign, CompetitorAnalysis, CompetitorPost, Competi
 
 /* ═══════════════════ API CALLS ═══════════════════ */
 
-async function apiScanTwitter(): Promise<any[]> {
-  const res = await fetch("/api/scan-twitter", { method: "POST" });
+async function apiScan(): Promise<{ twitter: ScoredTrend[]; google: ScoredTrend[] }> {
+  const res = await fetch("/api/scan", { method: "POST" });
   const data = await res.json();
   if (data.error) throw new Error(data.error);
-  return data.trends || [];
-}
-
-async function apiScanGoogle(): Promise<any[]> {
-  const res = await fetch("/api/scan-google", { method: "POST" });
-  const data = await res.json();
-  if (data.error) throw new Error(data.error);
-  return data.trends || [];
-}
-
-async function apiScore(trends: any[]): Promise<ScoredTrend[]> {
-  const res = await fetch("/api/score", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ trends }),
-  });
-  const data = await res.json();
-  if (data.error) throw new Error(data.error);
-  return data.trends || [];
+  return { twitter: data.twitter || [], google: data.google || [] };
 }
 
 async function apiNotion(payload: any): Promise<any> {
@@ -624,28 +606,29 @@ export default function Dashboard() {
   const [metaMsg, setMetaMsg] = useState("");
   const [metaScreenshot, setMetaScreenshot] = useState<string | null>(null);
 
-  const scanTwitter = async () => {
+  const scanAll = async () => {
     setTwitterPhase("fetching"); setTwitterMsg(""); setTwitterTrends([]);
-    try {
-      const raw = await apiScanTwitter();
-      if (!raw.length) { setTwitterPhase("error"); setTwitterMsg("Sin tendencias encontradas"); return; }
-      setTwitterPhase("scoring"); setTwitterMsg(`${raw.length} trends → scoring...`);
-      const scored = await apiScore(raw);
-      setTwitterTrends(sortByScore(scored));
-      setTwitterPhase("done"); setTwitterMsg(`${scored.length} tendencias`);
-    } catch (e: any) { setTwitterPhase("error"); setTwitterMsg(e.message || "Error"); }
-  };
-
-  const scanGoogle = async () => {
     setGooglePhase("fetching"); setGoogleMsg(""); setGoogleTrends([]);
     try {
-      const raw = await apiScanGoogle();
-      if (!raw.length) { setGooglePhase("error"); setGoogleMsg("Sin datos de Google Trends"); return; }
-      setGooglePhase("scoring"); setGoogleMsg(`${raw.length} trends → scoring...`);
-      const scored = await apiScore(raw);
-      setGoogleTrends(sortByScore(scored));
-      setGooglePhase("done"); setGoogleMsg(`${scored.length} búsquedas`);
-    } catch (e: any) { setGooglePhase("error"); setGoogleMsg(e.message || "Error"); }
+      setTwitterPhase("scoring"); setGooglePhase("scoring");
+      const { twitter, google } = await apiScan();
+      if (twitter.length) {
+        setTwitterTrends(sortByScore(twitter));
+        setTwitterPhase("done"); setTwitterMsg(`${twitter.length} tendencias`);
+      } else {
+        setTwitterPhase("error"); setTwitterMsg("Sin tendencias de X encontradas");
+      }
+      if (google.length) {
+        setGoogleTrends(sortByScore(google));
+        setGooglePhase("done"); setGoogleMsg(`${google.length} búsquedas`);
+      } else {
+        setGooglePhase("error"); setGoogleMsg("Sin datos de Google Trends");
+      }
+    } catch (e: any) {
+      const msg = e.message || "Error";
+      setTwitterPhase("error"); setTwitterMsg(msg);
+      setGooglePhase("error"); setGoogleMsg(msg);
+    }
   };
 
   const scanMetaAds = async () => {
@@ -794,7 +777,7 @@ export default function Dashboard() {
               subtitle="trends24.in/chile · Tiempo real"
               phase={twitterPhase} msg={twitterMsg}
               trends={twitterTrends} expanded={twitterExpanded} votes={twitterVotes}
-              onScan={scanTwitter}
+              onScan={scanAll}
               onToggle={(id) => setTwitterExpanded(twitterExpanded === id ? null : id)}
               onVote={voteTwitter}
               onCreate={(c, tr) => setModal({ campaign: c, trend: tr })}
@@ -804,7 +787,7 @@ export default function Dashboard() {
               subtitle="trends.google.es · Últimas 24 horas"
               phase={googlePhase} msg={googleMsg}
               trends={googleTrends} expanded={googleExpanded} votes={googleVotes}
-              onScan={scanGoogle}
+              onScan={scanAll}
               onToggle={(id) => setGoogleExpanded(googleExpanded === id ? null : id)}
               onVote={voteGoogle}
               onCreate={(c, tr) => setModal({ campaign: c, trend: tr })}
