@@ -5,7 +5,7 @@ import { BRAND } from "@/lib/constants";
 
 export const maxDuration = 120;
 
-/* ── Google Trends RSS (no Claude needed) ── */
+/* ── Step 1a: Google Trends RSS ── */
 
 function stripCDATA(s: string) {
   return s.replace(/<!\[CDATA\[([\s\S]*?)\]\]>/g, "$1").trim();
@@ -50,112 +50,135 @@ async function fetchGoogleTrends(): Promise<any[]> {
   return trends;
 }
 
-/* ── Single Claude call: X search + score everything ── */
+/* ── Step 1b: X/Twitter trends via Claude web_search (simple: just titles) ── */
 
-const SCORE_SCHEMA = `{
-  "title": string,
-  "source": string,
-  "sourceIcon": "𝕏" | "📊" | "📰",
-  "category": string,
-  "summary": string,
-  "relevanceScore": 1-10,
-  "viralScore": 1-10,
-  "brandFitScore": 1-10,
-  "timingWindow": string,
-  "effort": "S" | "M" | "L",
-  "campaigns": [{ "title": string, "channel": "Email"|"Push"|"Push + Email"|"Instagram Post"|"Instagram Story"|"Instagram + TikTok"|"TikTok"|"Paid Social"|"SMS"|"Full funnel", "copy": string, "cta": string, "estimatedReach": string }]
-}`;
+async function fetchXTrends(): Promise<any[]> {
+  const client = getClient();
+
+  const response = await createWithRetry(() =>
+    client.messages.create(
+      {
+        model: "claude-sonnet-4-6",
+        max_tokens: 1000,
+        tools: [{ type: "web_search_20250305", name: "web_search" } as any],
+        system: "Responde SOLO con un JSON array válido. Sin markdown, sin explicaciones.",
+        messages: [
+          {
+            role: "user",
+            content: `Busca "trending Twitter Chile hoy" y devuelve los trending topics actuales de X/Twitter Chile.
+
+Responde ÚNICAMENTE con este JSON array (sin markdown):
+[{"title":"#TrendOTema","summary":"por qué está trending en 1 frase","volume":"N/A"}]
+
+Máximo 12 items. Solo el array JSON.`,
+          },
+        ],
+      },
+      { headers: { "anthropic-beta": "web-search-2025-03-05" } }
+    )
+  );
+
+  const text = response.content
+    .filter((b): b is Anthropic.TextBlock => b.type === "text")
+    .map((b) => b.text)
+    .join("");
+
+  const clean = text.replace(/```json?/g, "").replace(/```/g, "").trim();
+  const start = clean.indexOf("[");
+  const end = clean.lastIndexOf("]");
+  if (start === -1 || end === -1) return [];
+
+  const raw: any[] = JSON.parse(clean.slice(start, end + 1));
+  return raw.map((t) => ({
+    title: t.title || "",
+    source: "X Trending",
+    category: "Trending",
+    summary: t.summary || "",
+    volume: t.volume || "N/A",
+  }));
+}
+
+/* ── Step 2: Score all trends in ONE Claude call ── */
+
+async function scoreAll(
+  twitterRaw: any[],
+  googleRaw: any[]
+): Promise<{ twitter: any[]; google: any[] }> {
+  if (!twitterRaw.length && !googleRaw.length) return { twitter: [], google: [] };
+
+  const client = getClient();
+  const allRaw = [
+    ...twitterRaw.map((t) => ({ ...t, _src: "twitter" })),
+    ...googleRaw.map((t) => ({ ...t, _src: "google" })),
+  ];
+
+  const response = await createWithRetry(() =>
+    client.messages.create({
+      model: "claude-sonnet-4-6",
+      max_tokens: 5000,
+      system: `Eres analista de Growth Marketing para Blue Express (logística Copec Chile).
+Marca: Pilares: ${BRAND.pillars.join(", ")} | Tono: ${BRAND.tone} | Audiencia: ${BRAND.audience.join(", ")} | Evitar: ${BRAND.avoidances.join(", ")} | Códigos: ENVIOGRATIS, BLUECOPEC20.
+Responde SOLO con JSON array válido. Sin markdown.`,
+      messages: [
+        {
+          role: "user",
+          content: `Evalúa estas ${allRaw.length} tendencias para Blue Express y devuelve el JSON array.
+
+${JSON.stringify(allRaw.map((t) => ({ title: t.title, source: t.source, summary: t.summary, _src: t._src })), null, 2)}
+
+Para CADA tendencia (solo relevanceScore >= 4), devuelve:
+{"title":string,"source":string,"sourceIcon":"𝕏" si _src=twitter sino "📊","category":string,"summary":string,"_src":string,"relevanceScore":1-10,"viralScore":1-10,"brandFitScore":1-10,"timingWindow":string,"effort":"S"|"M"|"L","campaigns":[{"title":string,"channel":"Email"|"Push"|"Push + Email"|"Instagram Post"|"Instagram Story"|"Instagram + TikTok"|"TikTok"|"Paid Social"|"SMS"|"Full funnel","copy":string,"cta":string,"estimatedReach":string}]}
+
+Reglas: 2-3 campañas por tendencia. Usa ENVIOGRATIS o BLUECOPEC20 si aplica.
+Responde ÚNICAMENTE con el JSON array.`,
+        },
+      ],
+    })
+  );
+
+  const texts = response.content
+    .filter((b) => b.type === "text")
+    .map((b) => (b as { type: "text"; text: string }).text)
+    .join("");
+
+  const clean = texts.replace(/```json?/g, "").replace(/```/g, "").trim();
+  const start = clean.indexOf("[");
+  const end = clean.lastIndexOf("]");
+  if (start === -1 || end === -1) return { twitter: [], google: [] };
+
+  const scored: any[] = JSON.parse(clean.slice(start, end + 1));
+  const twitter = scored.filter((t) => t._src === "twitter");
+  const google = scored.filter((t) => t._src === "google");
+  return { twitter, google };
+}
+
+/* ── Main handler ── */
+
+function enrich(arr: any[], prefix: string) {
+  return arr.map((t: any, i: number) => ({
+    ...t,
+    id: i + 1,
+    timestamp: "Ahora",
+    volume: Math.floor(Math.random() * 80000) + 5000,
+    velocity: `+${Math.floor(Math.random() * 400) + 50}%`,
+    campaigns: (t.campaigns || []).map((c: any, j: number) => ({
+      ...c,
+      id: `${prefix}${i}-${j}`,
+      votes: 0,
+    })),
+  }));
+}
 
 export async function POST() {
   try {
-    // 1. Fetch Google Trends RSS (fast, no Claude)
-    let googleRaw: any[] = [];
-    try {
-      googleRaw = await fetchGoogleTrends();
-    } catch (e) {
-      console.warn("Google RSS failed, continuing without it:", e);
-    }
+    // Step 1: Fetch Google RSS and X trends in parallel (X uses Claude web_search)
+    const [googleRaw, twitterRaw] = await Promise.all([
+      fetchGoogleTrends().catch((e) => { console.warn("Google RSS failed:", e); return []; }),
+      fetchXTrends().catch((e) => { console.warn("X trends failed:", e); return []; }),
+    ]);
 
-    // 2. ONE Claude call: search X trends + score everything
-    const client = getClient();
-
-    const response = await createWithRetry(() =>
-      client.messages.create(
-        {
-          model: "claude-sonnet-4-6",
-          max_tokens: 6000,
-          tools: [{ type: "web_search_20250305", name: "web_search" } as any],
-          system: `Eres un analista senior de Growth Marketing para Blue Express (envíos y logística de Copec, Chile).
-Manual de marca: Pilares: ${BRAND.pillars.join(", ")} | Tono: ${BRAND.tone} | Audiencia: ${BRAND.audience.join(", ")} | Evitar: ${BRAND.avoidances.join(", ")} | Códigos: ENVIOGRATIS (primer envío gratis), BLUECOPEC20 (20% retención).
-Responde SOLO con JSON válido. Sin markdown, sin texto adicional.`,
-          messages: [
-            {
-              role: "user",
-              content: `Haz lo siguiente en un solo paso:
-
-1. Busca "trending topics X Twitter Chile hoy" para obtener los 10-15 temas más trending ahora en Chile.
-
-2. Evalúa para Blue Express TANTO las tendencias de X que encuentres COMO estas tendencias de Google Trends Chile (ya recopiladas):
-${googleRaw.length ? JSON.stringify(googleRaw.map(t => ({ title: t.title, summary: t.summary, volume: t.volume })), null, 2) : "(sin datos de Google Trends)"}
-
-3. Devuelve SOLO este JSON (sin markdown):
-{
-  "twitter": [ /* tendencias de X/Twitter evaluadas, solo relevanceScore >= 4 */ ],
-  "google": [ /* tendencias de Google evaluadas, solo relevanceScore >= 4 */ ]
-}
-
-Cada tendencia con este esquema (2-3 campañas por tendencia):
-${SCORE_SCHEMA}
-
-Reglas:
-- sourceIcon: "𝕏" para X/Twitter, "📊" para Google Trends
-- Solo tendencias con relevanceScore >= 4
-- 2-3 campañas por tendencia, copys en tono Blue Express
-- Usar ENVIOGRATIS o BLUECOPEC20 si aplica
-- Para Google Trends: viralScore menor pero relevanceScore y brandFitScore pueden ser altos`,
-            },
-          ],
-        },
-        { headers: { "anthropic-beta": "web-search-2025-03-05" } }
-      )
-    );
-
-    const text = response.content
-      .filter((b): b is Anthropic.TextBlock => b.type === "text")
-      .map((b) => b.text)
-      .join("");
-
-    let twitter: any[] = [];
-    let google: any[] = [];
-
-    try {
-      const clean = text.replace(/```json?/g, "").replace(/```/g, "").trim();
-      const start = clean.indexOf("{");
-      const end = clean.lastIndexOf("}");
-      if (start !== -1 && end !== -1) {
-        const parsed = JSON.parse(clean.slice(start, end + 1));
-        twitter = parsed.twitter || [];
-        google = parsed.google || [];
-      }
-    } catch (e) {
-      console.error("Parse error in /api/scan:", e);
-      console.error("Raw text preview:", text.substring(0, 500));
-    }
-
-    // Enrich with IDs, timestamps, mock metrics
-    const enrich = (arr: any[], prefix: string) =>
-      arr.map((t: any, i: number) => ({
-        ...t,
-        id: i + 1,
-        timestamp: "Ahora",
-        volume: Math.floor(Math.random() * 80000) + 5000,
-        velocity: `+${Math.floor(Math.random() * 400) + 50}%`,
-        campaigns: (t.campaigns || []).map((c: any, j: number) => ({
-          ...c,
-          id: `${prefix}${i}-${j}`,
-          votes: 0,
-        })),
-      }));
+    // Step 2: Score all in one Claude call (sequential, no rate limit overlap)
+    const { twitter, google } = await scoreAll(twitterRaw, googleRaw);
 
     return NextResponse.json({
       twitter: enrich(twitter, "t"),
