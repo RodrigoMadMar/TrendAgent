@@ -67,39 +67,31 @@ function detectCategory(title: string): string {
 }
 
 function parseTrends24(html: string): any[] {
+  // La estructura real de trends24.in es:
+  // <ol class=trend-card__list> (sin comillas, varias — 1h ago, 2h ago, etc.)
+  //   <li><span class=trend-name><a class=trend-link>Nombre</a></span></li>
+  // Tomamos SOLO la primera (más reciente)
+
+  const firstListMatch = html.match(/<ol[^>]*class=trend-card__list[^>]*>([\s\S]*?)<\/ol>/);
+  if (!firstListMatch) return [];
+
+  const listHtml = firstListMatch[1];
   const trends: any[] = [];
-  const names: string[] = [];
-  const counts: string[] = [];
+  const linkRe = /<a[^>]*class=trend-link[^>]*>([^<]+)<\/a>/g;
   let m: RegExpExecArray | null;
 
-  const nameRe = /<p[^>]*class="[^"]*trend-name[^"]*"[^>]*>([^<]+)<\/p>/g;
-  const countRe = /<p[^>]*class="[^"]*tweet-count[^"]*"[^>]*>([^<]+)<\/p>/g;
-  while ((m = nameRe.exec(html)) !== null) names.push(m[1].trim());
-  while ((m = countRe.exec(html)) !== null) counts.push(m[1].trim());
-
-  const top = names.slice(0, 15);
-  for (let i = 0; i < top.length; i++) {
-    const title = top[i];
-    trends.push({
-      title,
-      source: "X Trending",
-      category: detectCategory(title),
-      summary: `Trending en X Chile en tiempo real. Posición #${i + 1} en trends24.in/chile`,
-      volume: counts[i] || "N/A",
-    });
-  }
-
-  // Fallback: links con /chile/
-  if (!trends.length) {
-    const linkRe = /href="\/chile\/[^"]*"[^>]*title="([^"]+)"/g;
-    while ((m = linkRe.exec(html)) !== null && trends.length < 15) {
-      const title = m[1].trim();
-      if (title && title !== "Chile") {
-        trends.push({ title, source: "X Trending", category: detectCategory(title), summary: `Trending en X Chile`, volume: "N/A" });
-      }
+  while ((m = linkRe.exec(listHtml)) !== null && trends.length < 15) {
+    const title = m[1].trim();
+    if (title) {
+      trends.push({
+        title,
+        source: "X Trending",
+        category: detectCategory(title),
+        summary: `Trending en X Chile en tiempo real`,
+        volume: "N/A",
+      });
     }
   }
-
   return trends;
 }
 
