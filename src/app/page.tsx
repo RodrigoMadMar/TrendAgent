@@ -62,7 +62,7 @@ interface BrandPulseResult {
   source: string;
   scannedAt: string;
 }
-interface AppReview { text: string; rating: number; date: string; sentiment: "positivo" | "negativo" | "neutro"; }
+interface AppReview { author?: string; text: string; rating: number; date: string; sentiment: "positivo" | "negativo" | "neutro"; }
 interface AppData {
   name: string; rating: number; totalReviews: string;
   recentSentiment: "positivo" | "mixto" | "negativo";
@@ -873,8 +873,9 @@ function AppReviewsPanel({ phase, data, onScan, onOpportunity }: {
                       <div style={{ marginBottom: 6 }}><Label>Últimas reviews</Label></div>
                       {app.recentReviews.map((rev, i) => (
                         <div key={i} style={{ background: "rgba(255,255,255,0.02)", borderRadius: 6, padding: "7px 9px", marginBottom: 5, border: `1px solid ${T.border}` }}>
-                          <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 3 }}>
+                          <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 3, flexWrap: "wrap" }}>
                             <StarRating rating={rev.rating} />
+                            {rev.author && <span style={{ fontSize: 9, color: T.txt2, fontWeight: 600 }}>{rev.author}</span>}
                             <span style={{ fontSize: 8, color: T.txt3, fontFamily: T.mono }}>{rev.date}</span>
                             <span style={{ fontSize: 8, color: SENTIMENT_COLOR[rev.sentiment], fontWeight: 700 }}>● {rev.sentiment}</span>
                           </div>

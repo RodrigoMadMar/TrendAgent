@@ -11,11 +11,21 @@ const BRANDS = [
   { name: "Starken", color: "#E31837" },
 ];
 
+function parseGT(text: string): any {
+  const idx = text.indexOf("{");
+  if (idx === -1) throw new Error("No JSON in response");
+  return JSON.parse(text.slice(idx));
+}
+
 /* ─────────────────────────────────────────────────────────
-   Playwright: intercepta XHR de Google Trends.
-   - /multiline  → serie de tiempo + scores promedios
-   - /relatedsearches → consultas en ascenso para Blue Express
-     (primer término en q=, por lo que su respuesta llega PRIMERO)
+   Playwright con page.route() — intercepta los XHR de
+   Google Trends ANTES de que el browser los procese,
+   garantizando la lectura del body sin race conditions.
+
+   page.on('response') fallaba porque response.text() es
+   async y el body puede ya estar consumido al llamarlo.
+   page.route() + route.fetch() lee el body de forma síncrona
+   dentro del handler antes de fulfillir la request.
 ───────────────────────────────────────────────────────── */
 async function scrapeWithPlaywright() {
   const url =
@@ -26,97 +36,106 @@ async function scrapeWithPlaywright() {
   await page.setExtraHTTPHeaders({ "Accept-Language": "es-CL,es;q=0.9" });
 
   try {
-    // Usamos arrays + Promise para evitar race-conditions en async
     const multilineBodies: string[] = [];
     const relatedBodies: string[] = [];
-    const capturePromises: Promise<void>[] = [];
 
-    page.on("response", (response) => {
-      const rUrl = response.url();
-      if (!rUrl.includes("trends.google.com/trends/api/widgetdata")) return;
+    await page.route("**/trends/api/widgetdata/**", async (route) => {
+      try {
+        const response = await route.fetch();
+        const text = await response.text();
+        const rUrl = route.request().url();
 
-      const p = response.text().then((text) => {
-        if (text.length < 50) return;
         if (rUrl.includes("/multiline")) multilineBodies.push(text);
-        if (rUrl.includes("/relatedsearches")) relatedBodies.push(text);
-      }).catch(() => {});
-      capturePromises.push(p);
+        else if (rUrl.includes("/relatedsearches")) relatedBodies.push(text);
+
+        await route.fulfill({ response });
+      } catch {
+        await route.continue();
+      }
     });
 
-    await page.goto(url, { waitUntil: "domcontentloaded", timeout: 35000 });
-    // Esperar carga de widgets XHR (son lazy, necesitan ~5s)
-    await page.waitForTimeout(5000);
-    // Scroll para disparar widgets below-the-fold (related queries)
-    await page.evaluate(() => window.scrollTo(0, document.body.scrollHeight));
-    await page.waitForTimeout(3000);
-    // Esperar que todas las capturas async se resuelvan
-    await Promise.allSettled(capturePromises);
+    await page.goto(url, { waitUntil: "networkidle", timeout: 42000 });
 
-    // ── Parsear multiline (timeline + scores) ────────────────
+    // Scroll para activar widgets de consultas relacionadas (lazy-loaded)
+    await page.evaluate(() => window.scrollTo(0, document.body.scrollHeight));
+    await page.waitForTimeout(4000);
+
+    console.log(
+      `GT route intercept: multiline=${multilineBodies.length}, related=${relatedBodies.length}`
+    );
+
+    // ── Parse timeline ─────────────────────────────────────
     let scores = [0, 0, 0];
-    let trendDir: ("up" | "down" | "stable")[] = ["stable", "stable", "stable"];
+    let trendDir: ("up" | "down" | "stable")[] = [
+      "stable",
+      "stable",
+      "stable",
+    ];
     let timelinePoints: { date: string; values: number[] }[] = [];
 
     for (const body of multilineBodies) {
       try {
-        const start = body.indexOf("{");
-        if (start === -1) continue;
-        const data = JSON.parse(body.slice(start));
+        const data = parseGT(body);
         const timeline: any[] = data.default?.timelineData ?? [];
         if (!timeline.length) continue;
 
-        // Timeline para gráfico (cada punto es una semana)
         timelinePoints = timeline.map((t: any) => ({
           date: t.formattedAxisTime ?? t.formattedTime ?? "",
           values: (t.value as number[]) ?? [0, 0, 0],
         }));
 
-        // Score = promedio del período
         scores = BRANDS.map((_, i) =>
           Math.round(
-            timeline.reduce((sum: number, t: any) => sum + (t.value?.[i] ?? 0), 0) /
-              timeline.length
+            timeline.reduce(
+              (sum: number, t: any) => sum + (t.value?.[i] ?? 0),
+              0
+            ) / timeline.length
           )
         );
 
-        // Tendencia: primera mitad vs segunda mitad
         if (timeline.length >= 6) {
           const mid = Math.floor(timeline.length / 2);
           const first = timeline.slice(0, mid);
           const second = timeline.slice(mid);
           trendDir = BRANDS.map((_, i) => {
-            const a1 = first.reduce((s: number, t: any) => s + (t.value?.[i] ?? 0), 0) / first.length;
-            const a2 = second.reduce((s: number, t: any) => s + (t.value?.[i] ?? 0), 0) / second.length;
+            const a1 =
+              first.reduce(
+                (s: number, t: any) => s + (t.value?.[i] ?? 0),
+                0
+              ) / first.length;
+            const a2 =
+              second.reduce(
+                (s: number, t: any) => s + (t.value?.[i] ?? 0),
+                0
+              ) / second.length;
             if (a2 > a1 * 1.08) return "up";
             if (a2 < a1 * 0.92) return "down";
             return "stable";
           });
         }
-        break; // Solo necesitamos el primero
+        break;
       } catch {}
     }
 
-    // ── Parsear relatedsearches ───────────────────────────────
-    // El PRIMER response de relatedsearches corresponde a Blue Express
-    // (primer término en q=Blue%20Express,Chilexpress,Starken)
+    // ── Parse related queries (primer response = Blue Express) ──
     let relatedQueries: { query: string; growth: string }[] = [];
 
     for (const body of relatedBodies) {
       try {
-        const start = body.indexOf("{");
-        if (start === -1) continue;
-        const data = JSON.parse(body.slice(start));
+        const data = parseGT(body);
         const rankedList: any[] = data.default?.rankedList ?? [];
-
-        // rankedList[0] = "Top", rankedList[1] = "En ascenso"
-        const rising = rankedList[1]?.rankedKeyword ?? rankedList[0]?.rankedKeyword ?? [];
+        // [0]=Top, [1]=En ascenso
+        const rising =
+          rankedList[1]?.rankedKeyword ??
+          rankedList[0]?.rankedKeyword ??
+          [];
         if (!rising.length) continue;
-
         relatedQueries = rising.slice(0, 6).map((k: any) => ({
           query: k.query ?? "",
-          growth: k.formattedValue ?? (k.value ? `+${k.value}%` : "↑"),
+          growth:
+            k.formattedValue ?? (k.value != null ? `+${k.value}%` : "↑"),
         }));
-        break; // Primer response = Blue Express
+        break; // primer response = Blue Express
       } catch {}
     }
 
@@ -132,47 +151,6 @@ async function scrapeWithPlaywright() {
   }
 }
 
-/* ─────────────────────────────────────────────────────────
-   Fallback: Claude web_search
-───────────────────────────────────────────────────────── */
-async function claudeFallback() {
-  const client = getClient();
-  const response = await createWithRetry(
-    () =>
-      client.messages.create(
-        {
-          model: "claude-sonnet-4-6",
-          max_tokens: 700,
-          tools: [{ type: "web_search_20250305", name: "web_search" } as any],
-          system: "Responde SOLO con JSON. Sin markdown, sin texto extra.",
-          messages: [{
-            role: "user",
-            content: `Busca en Google Trends la comparación de popularidad de búsqueda en Chile entre "Blue Express", "Chilexpress" y "Starken" durante los últimos 30 días. También busca las consultas relacionadas en ascenso para "Blue Express Chile".
-Devuelve SOLO este JSON:
-{"scores":[blue_0_100,chilex_0_100,starken_0_100],"trends":["up"|"down"|"stable","up"|"down"|"stable","up"|"down"|"stable"],"relatedQueries":[{"query":"texto consulta","growth":"+X%"}]}
-Incluye al menos 4 consultas relacionadas reales en ascenso para Blue Express.`,
-          }],
-        },
-        { headers: { "anthropic-beta": "web-search-2025-03-05" } }
-      ),
-    2
-  );
-
-  const text = response.content
-    .filter((b): b is Anthropic.TextBlock => b.type === "text")
-    .map((b) => b.text).join("");
-  const s = text.indexOf("{");
-  const e = text.lastIndexOf("}");
-  if (s === -1) throw new Error("No JSON from Claude fallback");
-  const d = JSON.parse(text.slice(s, e + 1));
-  return {
-    scores: (d.scores ?? [50, 80, 40]) as number[],
-    trendDir: (d.trends ?? ["stable", "stable", "stable"]) as ("up" | "down" | "stable")[],
-    relatedQueries: (d.relatedQueries ?? []) as { query: string; growth: string }[],
-    timelinePoints: [] as { date: string; values: number[] }[],
-  };
-}
-
 async function generateInsight(
   brands: { name: string; score: number; trend: string }[],
   relatedQueries: { query: string; growth: string }[]
@@ -182,47 +160,43 @@ async function generateInsight(
     client.messages.create({
       model: "claude-sonnet-4-6",
       max_tokens: 150,
-      messages: [{
-        role: "user",
-        content: `Datos Google Trends Chile 30 días (interés relativo 0-100):
+      messages: [
+        {
+          role: "user",
+          content: `Datos Google Trends Chile 30 días (interés relativo 0-100):
 ${brands.map((b) => `${b.name}: ${b.score}/100, tendencia ${b.trend}`).join("\n")}
-Consultas en ascenso Blue Express: ${relatedQueries.map((q) => `"${q.query}" ${q.growth}`).join(", ") || "sin datos"}
+Consultas en ascenso Blue Express: ${
+            relatedQueries
+              .map((q) => `"${q.query}" ${q.growth}`)
+              .join(", ") || "sin datos"
+          }
 Escribe UNA frase de insight para el equipo de marketing de Blue Express (máx 120 chars). Sin comillas.`,
-      }],
+        },
+      ],
     })
   );
   return (response.content[0] as Anthropic.TextBlock).text.trim();
 }
 
 export async function POST() {
-  let scores = [50, 80, 40];
+  let scores = [0, 0, 0];
   let trendDir: ("up" | "down" | "stable")[] = ["stable", "stable", "stable"];
   let relatedQueries: { query: string; growth: string }[] = [];
   let timelinePoints: { date: string; values: number[] }[] = [];
-  let source = "Claude web_search";
+  let source = "trends.google.com";
+  let error = "";
 
   try {
     const pw = await scrapeWithPlaywright();
-    if (pw.ok) {
-      scores = pw.scores;
-      trendDir = pw.trendDir;
-      relatedQueries = pw.relatedQueries;
-      timelinePoints = pw.timelinePoints;
-      source = "trends.google.com";
-    } else {
-      throw new Error("Playwright sin datos");
-    }
+    if (!pw.ok) throw new Error("Playwright no capturó datos de Google Trends");
+    scores = pw.scores;
+    trendDir = pw.trendDir;
+    relatedQueries = pw.relatedQueries;
+    timelinePoints = pw.timelinePoints;
   } catch (err) {
-    console.log("Brand pulse Playwright failed:", (err as Error).message);
-    try {
-      const fb = await claudeFallback();
-      scores = fb.scores;
-      trendDir = fb.trendDir;
-      relatedQueries = fb.relatedQueries;
-      timelinePoints = fb.timelinePoints;
-    } catch (e2) {
-      console.error("Claude fallback also failed:", e2);
-    }
+    error = (err as Error).message;
+    console.error("Brand pulse failed:", error);
+    return NextResponse.json({ error }, { status: 500 });
   }
 
   const brands = BRANDS.map((b, i) => ({
@@ -231,7 +205,9 @@ export async function POST() {
     trend: trendDir[i] ?? "stable",
   }));
 
-  const insight = await generateInsight(brands, relatedQueries).catch(() => "");
+  const insight = await generateInsight(brands, relatedQueries).catch(
+    () => ""
+  );
 
   return NextResponse.json({
     brands,
