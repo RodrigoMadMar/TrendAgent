@@ -38,6 +38,38 @@ async function apiCompetitors(): Promise<CompetitorAnalysis> {
   return data;
 }
 
+async function apiBrandPulse(): Promise<BrandPulseResult> {
+  const res = await fetch("/api/brand-pulse", { method: "POST" });
+  const data = await res.json();
+  if (data.error) throw new Error(data.error);
+  return data;
+}
+
+async function apiAppReviews(): Promise<AppReviewsResult> {
+  const res = await fetch("/api/app-reviews", { method: "POST" });
+  const data = await res.json();
+  if (data.error) throw new Error(data.error);
+  return data;
+}
+
+/* ── Types for new modules ── */
+interface BrandData { name: string; score: number; trend: "up" | "down" | "stable"; color: string; }
+interface BrandPulseResult {
+  brands: BrandData[];
+  relatedQueries: { query: string; growth: string }[];
+  insight: string;
+  source: string;
+  scannedAt: string;
+}
+interface AppReview { text: string; rating: number; date: string; sentiment: "positivo" | "negativo" | "neutro"; }
+interface AppData {
+  name: string; rating: number; totalReviews: string;
+  recentSentiment: "positivo" | "mixto" | "negativo";
+  topIssues: string[]; topPraises: string[];
+  recentReviews: AppReview[];
+}
+interface AppReviewsResult { apps: AppData[]; insight: string; opportunity: string; scannedAt: string; }
+
 /* ═══════════════════ DESIGN TOKENS ═══════════════════ */
 
 const T = {
@@ -576,6 +608,255 @@ function TrendPanel({
   );
 }
 
+/* ═══════════════════ BRAND PULSE PANEL ═══════════════════ */
+
+const BRAND_PULSE_ACCENT = "#a78bfa";
+
+function BrandPulsePanel({ phase, data, onScan }: {
+  phase: "idle" | "fetching" | "done" | "error";
+  data: BrandPulseResult | null;
+  onScan: () => void;
+}) {
+  const isLoading = phase === "fetching";
+  const btnLabel = phase === "idle" ? "Escanear" : isLoading ? "📡 Analizando..." : phase === "error" ? "🔄 Reintentar" : "🔄 Actualizar";
+  const TREND_ICON: Record<string, string> = { up: "▲", down: "▼", stable: "●" };
+  const TREND_COLOR: Record<string, string> = { up: T.green, down: T.red, stable: T.txt3 };
+
+  return (
+    <Panel accent={BRAND_PULSE_ACCENT} header={
+      <>
+        <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+          {phase === "done" && <Dot color={BRAND_PULSE_ACCENT} />}
+          <div>
+            <div style={{ fontSize: 13, fontWeight: 800, color: T.txt1 }}>📊 Pulso de Marca</div>
+            <div style={{ fontSize: 9, color: T.txt3, fontFamily: T.mono }}>
+              {data ? data.source : "trends.google.com"} · Últimos 30 días
+            </div>
+          </div>
+        </div>
+        <button onClick={onScan} disabled={isLoading} style={{
+          padding: "5px 12px", borderRadius: 7, fontSize: 10, fontWeight: 700,
+          cursor: isLoading ? "not-allowed" : "pointer",
+          background: isLoading ? "rgba(255,255,255,0.03)" : `${BRAND_PULSE_ACCENT}15`,
+          border: `1px solid ${isLoading ? T.border : BRAND_PULSE_ACCENT + "40"}`,
+          color: isLoading ? T.txt3 : BRAND_PULSE_ACCENT, whiteSpace: "nowrap",
+        }}>{btnLabel}</button>
+      </>
+    }>
+      <div style={{ padding: 12 }}>
+        {phase === "idle" && (
+          <div style={{ textAlign: "center", padding: "32px 20px" }}>
+            <div style={{ fontSize: 30, marginBottom: 8, opacity: 0.3 }}>📊</div>
+            <div style={{ fontSize: 12, fontWeight: 700, color: T.txt3 }}>Pulso de Marca</div>
+            <div style={{ fontSize: 10, color: T.txt3, marginTop: 3 }}>Blue Express vs Chilexpress vs Starken</div>
+          </div>
+        )}
+        {isLoading && (
+          <div style={{ textAlign: "center", padding: "32px 20px" }}>
+            <div style={{ fontSize: 28, marginBottom: 8, animation: "pulse 1.5s ease-in-out infinite" }}>📊</div>
+            <div style={{ fontSize: 11, fontWeight: 700, color: BRAND_PULSE_ACCENT }}>Consultando Google Trends...</div>
+          </div>
+        )}
+        {phase === "done" && data && (
+          <>
+            {/* Barras de marcas */}
+            <div style={{ display: "flex", flexDirection: "column", gap: 10, marginBottom: 12 }}>
+              {data.brands.map((brand) => (
+                <div key={brand.name}>
+                  <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 4 }}>
+                    <span style={{ fontSize: 11, fontWeight: 700, color: brand.color, width: 100, flexShrink: 0 }}>{brand.name}</span>
+                    <div style={{ flex: 1, height: 8, background: "rgba(255,255,255,0.05)", borderRadius: 4, overflow: "hidden" }}>
+                      <div style={{ height: "100%", width: `${brand.score}%`, background: brand.color, borderRadius: 4, transition: "width 0.8s ease" }} />
+                    </div>
+                    <span style={{ fontSize: 11, fontWeight: 800, color: brand.color, fontFamily: T.mono, width: 26, textAlign: "right" }}>{brand.score}</span>
+                    <span style={{ fontSize: 10, color: TREND_COLOR[brand.trend] || T.txt3, fontWeight: 700, width: 14 }}>
+                      {TREND_ICON[brand.trend] || "●"}
+                    </span>
+                  </div>
+                  {/* Related queries solo para Blue Express */}
+                  {brand.name === "Blue Express" && data.relatedQueries.length > 0 && (
+                    <div style={{ display: "flex", flexWrap: "wrap", gap: 4, marginLeft: 108, marginBottom: 4 }}>
+                      {data.relatedQueries.map((q, i) => (
+                        <span key={i} style={{
+                          fontSize: 8, color: BRAND_PULSE_ACCENT, background: `${BRAND_PULSE_ACCENT}12`,
+                          padding: "2px 7px", borderRadius: 4, border: `1px solid ${BRAND_PULSE_ACCENT}25`,
+                          fontFamily: T.mono, whiteSpace: "nowrap",
+                        }}>{q.query} <span style={{ color: T.green }}>{q.growth}</span></span>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              ))}
+            </div>
+            {/* Insight */}
+            {data.insight && (
+              <div style={{ background: `${BRAND_PULSE_ACCENT}08`, border: `1px solid ${BRAND_PULSE_ACCENT}18`, borderRadius: 7, padding: "8px 10px" }}>
+                <span style={{ fontSize: 9, color: BRAND_PULSE_ACCENT, fontWeight: 700 }}>💡 </span>
+                <span style={{ fontSize: 10, color: T.txt2, lineHeight: 1.4 }}>{data.insight}</span>
+              </div>
+            )}
+          </>
+        )}
+        {phase === "error" && (
+          <div style={{ textAlign: "center", padding: "24px 20px" }}>
+            <div style={{ fontSize: 10, color: T.red, marginBottom: 6 }}>⚠ Error al obtener datos de marca</div>
+            <button onClick={onScan} style={{ padding: "6px 16px", borderRadius: 7, border: `1px solid ${T.red}30`, background: `${T.red}0d`, color: T.red, fontSize: 11, cursor: "pointer" }}>Reintentar</button>
+          </div>
+        )}
+      </div>
+    </Panel>
+  );
+}
+
+/* ═══════════════════ APP REVIEWS PANEL ═══════════════════ */
+
+const REVIEWS_ACCENT = "#fbbf24";
+const SENTIMENT_COLOR: Record<string, string> = { positivo: "#00d68f", mixto: "#f59e0b", negativo: "#f87171" };
+const SENTIMENT_LABEL: Record<string, string> = { positivo: "✓ positivo", mixto: "~ mixto", negativo: "✗ negativo" };
+
+function StarRating({ rating }: { rating: number }) {
+  const full = Math.round(rating);
+  return (
+    <span style={{ fontSize: 11, letterSpacing: -1 }}>
+      {[1,2,3,4,5].map(i => (
+        <span key={i} style={{ color: i <= full ? REVIEWS_ACCENT : "rgba(255,255,255,0.15)" }}>★</span>
+      ))}
+    </span>
+  );
+}
+
+function AppReviewsPanel({ phase, data, onScan, onOpportunity }: {
+  phase: "idle" | "fetching" | "done" | "error";
+  data: AppReviewsResult | null;
+  onScan: () => void;
+  onOpportunity: () => void;
+}) {
+  const [expandedApp, setExpandedApp] = useState<string | null>(null);
+  const isLoading = phase === "fetching";
+  const btnLabel = phase === "idle" ? "Escanear" : isLoading ? "🔍 Buscando..." : phase === "error" ? "🔄 Reintentar" : "🔄 Actualizar";
+
+  return (
+    <Panel accent={REVIEWS_ACCENT} header={
+      <>
+        <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+          {phase === "done" && <Dot color={REVIEWS_ACCENT} />}
+          <div>
+            <div style={{ fontSize: 13, fontWeight: 800, color: T.txt1 }}>⭐ Reviews Competencia</div>
+            <div style={{ fontSize: 9, color: T.txt3, fontFamily: T.mono }}>Google Play Store · Reviews recientes</div>
+          </div>
+        </div>
+        <button onClick={onScan} disabled={isLoading} style={{
+          padding: "5px 12px", borderRadius: 7, fontSize: 10, fontWeight: 700,
+          cursor: isLoading ? "not-allowed" : "pointer",
+          background: isLoading ? "rgba(255,255,255,0.03)" : `${REVIEWS_ACCENT}15`,
+          border: `1px solid ${isLoading ? T.border : REVIEWS_ACCENT + "40"}`,
+          color: isLoading ? T.txt3 : REVIEWS_ACCENT, whiteSpace: "nowrap",
+        }}>{btnLabel}</button>
+      </>
+    }>
+      <div style={{ padding: 12 }}>
+        {phase === "idle" && (
+          <div style={{ textAlign: "center", padding: "32px 20px" }}>
+            <div style={{ fontSize: 30, marginBottom: 8, opacity: 0.3 }}>⭐</div>
+            <div style={{ fontSize: 12, fontWeight: 700, color: T.txt3 }}>Reviews Competencia</div>
+            <div style={{ fontSize: 10, color: T.txt3, marginTop: 3 }}>Chilexpress · Starken · Google Play</div>
+          </div>
+        )}
+        {isLoading && (
+          <div style={{ textAlign: "center", padding: "32px 20px" }}>
+            <div style={{ fontSize: 28, marginBottom: 8, animation: "pulse 1.5s ease-in-out infinite" }}>⭐</div>
+            <div style={{ fontSize: 11, fontWeight: 700, color: REVIEWS_ACCENT }}>Analizando reviews con Claude...</div>
+          </div>
+        )}
+        {phase === "done" && data && (
+          <>
+            {/* Apps */}
+            {data.apps.map((app) => {
+              const compColor = app.name === "Chilexpress" ? "#FF6B00" : "#E31837";
+              const isOpen = expandedApp === app.name;
+              return (
+                <div key={app.name} style={{ background: T.card, border: `1px solid ${compColor}25`, borderRadius: 8, marginBottom: 8, overflow: "hidden" }}>
+                  <div onClick={() => setExpandedApp(isOpen ? null : app.name)} style={{ padding: "10px 12px", cursor: "pointer" }}>
+                    <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                      <span style={{ fontSize: 13, flexShrink: 0 }}>{app.name === "Chilexpress" ? "🟠" : "🔴"}</span>
+                      <div style={{ flex: 1, minWidth: 0 }}>
+                        <div style={{ display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap", marginBottom: 3 }}>
+                          <span style={{ fontSize: 12, fontWeight: 700, color: compColor }}>{app.name}</span>
+                          <StarRating rating={app.rating} />
+                          <span style={{ fontSize: 10, fontWeight: 800, color: T.txt1, fontFamily: T.mono }}>{app.rating.toFixed(1)}</span>
+                          <span style={{ fontSize: 8, color: T.txt3, fontFamily: T.mono }}>{app.totalReviews}</span>
+                          <span style={{
+                            fontSize: 8, fontWeight: 700, color: SENTIMENT_COLOR[app.recentSentiment],
+                            background: `${SENTIMENT_COLOR[app.recentSentiment]}15`, padding: "1px 7px",
+                            borderRadius: 4, border: `1px solid ${SENTIMENT_COLOR[app.recentSentiment]}25`,
+                          }}>{SENTIMENT_LABEL[app.recentSentiment]}</span>
+                        </div>
+                        {/* Issues */}
+                        {app.topIssues.length > 0 && (
+                          <div style={{ display: "flex", flexWrap: "wrap", gap: 3 }}>
+                            {app.topIssues.map((issue, i) => (
+                              <span key={i} style={{ fontSize: 8, color: T.red, background: `${T.red}10`, padding: "1px 6px", borderRadius: 3, border: `1px solid ${T.red}20` }}>⚠ {issue}</span>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                      <span style={{ color: T.txt3, fontSize: 10, flexShrink: 0, transform: isOpen ? "rotate(180deg)" : "rotate(0)", transition: "0.2s" }}>▾</span>
+                    </div>
+                  </div>
+                  {isOpen && app.recentReviews.length > 0 && (
+                    <div style={{ borderTop: `1px solid ${compColor}15`, padding: "8px 12px" }}>
+                      <div style={{ marginBottom: 6 }}><Label>Últimas reviews</Label></div>
+                      {app.recentReviews.map((rev, i) => (
+                        <div key={i} style={{ background: "rgba(255,255,255,0.02)", borderRadius: 6, padding: "7px 9px", marginBottom: 5, border: `1px solid ${T.border}` }}>
+                          <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 3 }}>
+                            <StarRating rating={rev.rating} />
+                            <span style={{ fontSize: 8, color: T.txt3, fontFamily: T.mono }}>{rev.date}</span>
+                            <span style={{ fontSize: 8, color: SENTIMENT_COLOR[rev.sentiment], fontWeight: 700 }}>● {rev.sentiment}</span>
+                          </div>
+                          <p style={{ fontSize: 10, color: T.txt2, margin: 0, lineHeight: 1.4 }}>&ldquo;{rev.text}&rdquo;</p>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              );
+            })}
+
+            {/* Insight */}
+            {data.insight && (
+              <div style={{ background: `${REVIEWS_ACCENT}08`, border: `1px solid ${REVIEWS_ACCENT}18`, borderRadius: 7, padding: "8px 10px", marginBottom: 8 }}>
+                <span style={{ fontSize: 9, color: REVIEWS_ACCENT, fontWeight: 700 }}>💡 </span>
+                <span style={{ fontSize: 10, color: T.txt2, lineHeight: 1.4 }}>{data.insight}</span>
+              </div>
+            )}
+
+            {/* Oportunidad */}
+            {data.opportunity && (
+              <div style={{ background: `${T.blue}08`, border: `1px solid ${T.blue}25`, borderLeft: `3px solid ${T.blue}`, borderRadius: 7, padding: "9px 11px", display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 8 }}>
+                <div style={{ flex: 1 }}>
+                  <div style={{ fontSize: 9, color: T.blue, fontWeight: 700, marginBottom: 3 }}>🎯 OPORTUNIDAD</div>
+                  <p style={{ fontSize: 10, color: T.txt2, margin: 0, lineHeight: 1.4 }}>{data.opportunity}</p>
+                </div>
+                <button onClick={onOpportunity} style={{
+                  padding: "5px 10px", borderRadius: 6, border: `1px solid ${T.blue}40`,
+                  background: `${T.blue}15`, color: T.blue, fontSize: 9, fontWeight: 700,
+                  cursor: "pointer", whiteSpace: "nowrap", flexShrink: 0,
+                }}>→ Crear campaña</button>
+              </div>
+            )}
+          </>
+        )}
+        {phase === "error" && (
+          <div style={{ textAlign: "center", padding: "24px 20px" }}>
+            <div style={{ fontSize: 10, color: T.red, marginBottom: 6 }}>⚠ Error al obtener reviews</div>
+            <button onClick={onScan} style={{ padding: "6px 16px", borderRadius: 7, border: `1px solid ${T.red}30`, background: `${T.red}0d`, color: T.red, fontSize: 11, cursor: "pointer" }}>Reintentar</button>
+          </div>
+        )}
+      </div>
+    </Panel>
+  );
+}
+
 /* ═══════════════════ MAIN DASHBOARD ═══════════════════ */
 
 export default function Dashboard() {
@@ -606,7 +887,13 @@ export default function Dashboard() {
   const [metaMsg, setMetaMsg] = useState("");
   const [metaScreenshot, setMetaScreenshot] = useState<string | null>(null);
 
-  const scanAll = async () => {
+  const [brandPulse, setBrandPulse] = useState<BrandPulseResult | null>(null);
+  const [brandPhase, setBrandPhase] = useState<"idle" | "fetching" | "done" | "error">("idle");
+
+  const [appReviews, setAppReviews] = useState<AppReviewsResult | null>(null);
+  const [reviewsPhase, setReviewsPhase] = useState<"idle" | "fetching" | "done" | "error">("idle");
+
+  const scanTrends = async () => {
     setTwitterPhase("fetching"); setTwitterMsg(""); setTwitterTrends([]);
     setGooglePhase("fetching"); setGoogleMsg(""); setGoogleTrends([]);
     try {
@@ -629,6 +916,28 @@ export default function Dashboard() {
       setTwitterPhase("error"); setTwitterMsg(msg);
       setGooglePhase("error"); setGoogleMsg(msg);
     }
+  };
+
+  const scanBrandPulse = async () => {
+    setBrandPhase("fetching"); setBrandPulse(null);
+    try {
+      const data = await apiBrandPulse();
+      setBrandPulse(data); setBrandPhase("done");
+    } catch (e: any) { setBrandPhase("error"); }
+  };
+
+  const scanAppReviews = async () => {
+    setReviewsPhase("fetching"); setAppReviews(null);
+    try {
+      const data = await apiAppReviews();
+      setAppReviews(data); setReviewsPhase("done");
+    } catch (e: any) { setReviewsPhase("error"); }
+  };
+
+  const scanAll = () => {
+    scanTrends();
+    scanBrandPulse();
+    scanAppReviews();
   };
 
   const scanMetaAds = async () => {
@@ -766,6 +1075,20 @@ export default function Dashboard() {
       {/* ── TENDENCIAS TAB ── */}
       {activeTab === "tendencias" && (
         <div style={{ padding: "16px 16px 24px" }}>
+          {/* Master scan button */}
+          <div style={{ display: "flex", justifyContent: "flex-end", marginBottom: 12 }}>
+            <button
+              onClick={scanAll}
+              disabled={twitterPhase === "fetching" || twitterPhase === "scoring" || brandPhase === "fetching" || reviewsPhase === "fetching"}
+              style={{
+                padding: "7px 18px", borderRadius: 8, fontSize: 11, fontWeight: 700,
+                background: `${T.blue}18`, border: `1px solid ${T.blue}40`,
+                color: T.blue, cursor: "pointer", display: "flex", alignItems: "center", gap: 6,
+              }}
+            >
+              ⚡ Escanear todo
+            </button>
+          </div>
           <div style={{
             display: "grid",
             gridTemplateColumns: "repeat(auto-fit, minmax(340px, 1fr))",
@@ -777,7 +1100,7 @@ export default function Dashboard() {
               subtitle="trends24.in/chile · Tiempo real"
               phase={twitterPhase} msg={twitterMsg}
               trends={twitterTrends} expanded={twitterExpanded} votes={twitterVotes}
-              onScan={scanAll}
+              onScan={scanTrends}
               onToggle={(id) => setTwitterExpanded(twitterExpanded === id ? null : id)}
               onVote={voteTwitter}
               onCreate={(c, tr) => setModal({ campaign: c, trend: tr })}
@@ -787,10 +1110,21 @@ export default function Dashboard() {
               subtitle="trends.google.es · Últimas 24 horas"
               phase={googlePhase} msg={googleMsg}
               trends={googleTrends} expanded={googleExpanded} votes={googleVotes}
-              onScan={scanAll}
+              onScan={scanTrends}
               onToggle={(id) => setGoogleExpanded(googleExpanded === id ? null : id)}
               onVote={voteGoogle}
               onCreate={(c, tr) => setModal({ campaign: c, trend: tr })}
+            />
+            <BrandPulsePanel
+              phase={brandPhase}
+              data={brandPulse}
+              onScan={scanBrandPulse}
+            />
+            <AppReviewsPanel
+              phase={reviewsPhase}
+              data={appReviews}
+              onScan={scanAppReviews}
+              onOpportunity={() => setActiveTab("tendencias")}
             />
           </div>
         </div>
