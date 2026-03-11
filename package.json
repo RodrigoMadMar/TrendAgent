@@ -13,6 +13,7 @@
     "@anthropic-ai/sdk": "^0.39.0",
     "@sparticuz/chromium-min": "^143.0.4",
     "cheerio": "^1.0.0",
+    "google-play-scraper": "^10.1.2",
     "next": "^15.1.0",
     "playwright": "^1.58.2",
     "react": "^19.0.0",
