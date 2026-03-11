@@ -22,10 +22,8 @@ function parseGT(text: string): any {
    Google Trends ANTES de que el browser los procese,
    garantizando la lectura del body sin race conditions.
 
-   page.on('response') fallaba porque response.text() es
-   async y el body puede ya estar consumido al llamarlo.
-   page.route() + route.fetch() lee el body de forma síncrona
-   dentro del handler antes de fulfillir la request.
+   Almacena también el parámetro req de la URL para poder
+   identificar cuál respuesta corresponde a Blue Express.
 ───────────────────────────────────────────────────────── */
 async function scrapeWithPlaywright() {
   const url =
@@ -36,17 +34,24 @@ async function scrapeWithPlaywright() {
   await page.setExtraHTTPHeaders({ "Accept-Language": "es-CL,es;q=0.9" });
 
   try {
-    const multilineBodies: string[] = [];
-    const relatedBodies: string[] = [];
+    const multilineBodies: { body: string; reqParam: string }[] = [];
+    const relatedBodies: { body: string; reqParam: string }[] = [];
 
+    // page.route() es más fiable que page.on('response') porque
+    // intercepta ANTES de que el browser procese la respuesta —
+    // sin race conditions al leer el body.
     await page.route("**/trends/api/widgetdata/**", async (route) => {
       try {
         const response = await route.fetch();
         const text = await response.text();
         const rUrl = route.request().url();
+        const reqParam = new URL(rUrl).searchParams.get("req") ?? "";
 
-        if (rUrl.includes("/multiline")) multilineBodies.push(text);
-        else if (rUrl.includes("/relatedsearches")) relatedBodies.push(text);
+        if (rUrl.includes("/multiline")) {
+          multilineBodies.push({ body: text, reqParam });
+        } else if (rUrl.includes("/relatedsearches")) {
+          relatedBodies.push({ body: text, reqParam });
+        }
 
         await route.fulfill({ response });
       } catch {
@@ -66,76 +71,80 @@ async function scrapeWithPlaywright() {
 
     // ── Parse timeline ─────────────────────────────────────
     let scores = [0, 0, 0];
-    let trendDir: ("up" | "down" | "stable")[] = [
-      "stable",
-      "stable",
-      "stable",
-    ];
+    let trendDir: ("up" | "down" | "stable")[] = ["stable", "stable", "stable"];
     let timelinePoints: { date: string; values: number[] }[] = [];
 
-    for (const body of multilineBodies) {
+    // Preferir la respuesta que contiene los 3 términos comparados
+    const targetMultiline =
+      multilineBodies.find(
+        ({ reqParam }) =>
+          reqParam.includes("Blue Express") &&
+          reqParam.includes("Chilexpress") &&
+          reqParam.includes("Starken")
+      ) ?? multilineBodies[0];
+
+    if (targetMultiline) {
       try {
-        const data = parseGT(body);
+        const data = parseGT(targetMultiline.body);
         const timeline: any[] = data.default?.timelineData ?? [];
-        if (!timeline.length) continue;
 
-        timelinePoints = timeline.map((t: any) => ({
-          date: t.formattedAxisTime ?? t.formattedTime ?? "",
-          values: (t.value as number[]) ?? [0, 0, 0],
-        }));
+        if (timeline.length) {
+          timelinePoints = timeline.map((t: any) => ({
+            date: t.formattedAxisTime ?? t.formattedTime ?? "",
+            values: (t.value as number[]) ?? [0, 0, 0],
+          }));
 
-        scores = BRANDS.map((_, i) =>
-          Math.round(
-            timeline.reduce(
-              (sum: number, t: any) => sum + (t.value?.[i] ?? 0),
-              0
-            ) / timeline.length
-          )
-        );
-
-        if (timeline.length >= 6) {
-          const mid = Math.floor(timeline.length / 2);
-          const first = timeline.slice(0, mid);
-          const second = timeline.slice(mid);
-          trendDir = BRANDS.map((_, i) => {
-            const a1 =
-              first.reduce(
-                (s: number, t: any) => s + (t.value?.[i] ?? 0),
+          scores = BRANDS.map((_, i) =>
+            Math.round(
+              timeline.reduce(
+                (sum: number, t: any) => sum + (t.value?.[i] ?? 0),
                 0
-              ) / first.length;
-            const a2 =
-              second.reduce(
-                (s: number, t: any) => s + (t.value?.[i] ?? 0),
-                0
-              ) / second.length;
-            if (a2 > a1 * 1.08) return "up";
-            if (a2 < a1 * 0.92) return "down";
-            return "stable";
-          });
+              ) / timeline.length
+            )
+          );
+
+          if (timeline.length >= 6) {
+            const mid = Math.floor(timeline.length / 2);
+            const first = timeline.slice(0, mid);
+            const second = timeline.slice(mid);
+            trendDir = BRANDS.map((_, i) => {
+              const a1 =
+                first.reduce((s: number, t: any) => s + (t.value?.[i] ?? 0), 0) /
+                first.length;
+              const a2 =
+                second.reduce((s: number, t: any) => s + (t.value?.[i] ?? 0), 0) /
+                second.length;
+              if (a2 > a1 * 1.08) return "up";
+              if (a2 < a1 * 0.92) return "down";
+              return "stable";
+            });
+          }
         }
-        break;
       } catch {}
     }
 
-    // ── Parse related queries (primer response = Blue Express) ──
+    // ── Parse related queries ──────────────────────────────
+    // Identificar la respuesta de Blue Express por el parámetro req
     let relatedQueries: { query: string; growth: string }[] = [];
 
-    for (const body of relatedBodies) {
+    const targetRelated =
+      relatedBodies.find(({ reqParam }) =>
+        reqParam.toLowerCase().includes("blue express")
+      ) ?? relatedBodies[0];
+
+    if (targetRelated) {
       try {
-        const data = parseGT(body);
+        const data = parseGT(targetRelated.body);
         const rankedList: any[] = data.default?.rankedList ?? [];
         // [0]=Top, [1]=En ascenso
         const rising =
           rankedList[1]?.rankedKeyword ??
           rankedList[0]?.rankedKeyword ??
           [];
-        if (!rising.length) continue;
         relatedQueries = rising.slice(0, 6).map((k: any) => ({
           query: k.query ?? "",
-          growth:
-            k.formattedValue ?? (k.value != null ? `+${k.value}%` : "↑"),
+          growth: k.formattedValue ?? (k.value != null ? `+${k.value}%` : "↑"),
         }));
-        break; // primer response = Blue Express
       } catch {}
     }
 
@@ -183,8 +192,7 @@ export async function POST() {
   let trendDir: ("up" | "down" | "stable")[] = ["stable", "stable", "stable"];
   let relatedQueries: { query: string; growth: string }[] = [];
   let timelinePoints: { date: string; values: number[] }[] = [];
-  let source = "trends.google.com";
-  let error = "";
+  const source = "trends.google.com";
 
   try {
     const pw = await scrapeWithPlaywright();
@@ -194,9 +202,9 @@ export async function POST() {
     relatedQueries = pw.relatedQueries;
     timelinePoints = pw.timelinePoints;
   } catch (err) {
-    error = (err as Error).message;
-    console.error("Brand pulse failed:", error);
-    return NextResponse.json({ error }, { status: 500 });
+    const msg = (err as Error).message;
+    console.error("Brand pulse failed:", msg);
+    return NextResponse.json({ error: msg }, { status: 500 });
   }
 
   const brands = BRANDS.map((b, i) => ({
@@ -205,9 +213,7 @@ export async function POST() {
     trend: trendDir[i] ?? "stable",
   }));
 
-  const insight = await generateInsight(brands, relatedQueries).catch(
-    () => ""
-  );
+  const insight = await generateInsight(brands, relatedQueries).catch(() => "");
 
   return NextResponse.json({
     brands,
