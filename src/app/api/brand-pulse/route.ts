@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { launchBrowser } from "@/lib/browser";
 import { getClient, createWithRetry } from "@/lib/anthropic";
 import Anthropic from "@anthropic-ai/sdk";
 
@@ -10,145 +11,115 @@ const BRANDS = [
   { name: "Starken", color: "#E31837" },
 ];
 
-function parseGT(text: string): any {
-  const idx = text.indexOf("{");
-  if (idx === -1) throw new Error("No JSON in GT response");
-  return JSON.parse(text.slice(idx));
+/* ─────────────────────────────────────────────────────────
+   Playwright carga Google Trends con las 3 marcas y
+   toma screenshot. Claude vision extrae los datos del
+   gráfico. Mismo patrón que /api/app-reviews (funciona).
+   No usamos HTTP API porque Google devuelve 429 desde
+   entornos de servidor.
+───────────────────────────────────────────────────────── */
+async function screenshotTrends(): Promise<string> {
+  const browser = await launchBrowser();
+  const page = await browser.newPage();
+
+  try {
+    await page.setViewportSize({ width: 1400, height: 900 });
+    await page.setExtraHTTPHeaders({
+      "Accept-Language": "es-CL,es;q=0.9",
+    });
+
+    const url =
+      "https://trends.google.com/trends/explore" +
+      "?q=Blue+Express,Chilexpress,Starken" +
+      "&geo=CL&date=today+1-m&hl=es";
+
+    try {
+      await page.goto(url, { waitUntil: "load", timeout: 30000 });
+    } catch {
+      // timeout parcial — el contenido visual puede estar listo igual
+    }
+
+    // Esperar a que el gráfico renderice
+    await page.waitForTimeout(5000);
+
+    // Scroll leve para asegurar que todo esté visible
+    await page.evaluate(() => window.scrollBy(0, 200));
+    await page.waitForTimeout(1000);
+
+    const buffer = await page.screenshot({ type: "jpeg", quality: 85 });
+    return buffer.toString("base64");
+  } finally {
+    await browser.close();
+  }
 }
 
 /* ─────────────────────────────────────────────────────────
-   Google Trends API - flujo sin browser:
-   1. GET trends/explore  → tokens por widget
-   2. GET widgetdata/multiline  → serie de tiempo 30 días
-   3. GET widgetdata/relatedsearches  → consultas en ascenso
-
-   Este es el mismo protocolo que usa pytrends (Python).
-   No necesita Playwright — los endpoints son públicos una
-   vez que tenemos la cookie NID de la página principal.
+   Claude vision lee el gráfico de Google Trends y extrae
+   datos estructurados (scores, tendencias, consultas).
 ───────────────────────────────────────────────────────── */
-async function fetchGoogleTrends() {
-  const UA =
-    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36";
+async function extractWithVision(b64: string): Promise<{
+  scores: number[];
+  trendDir: ("up" | "down" | "stable")[];
+  relatedQueries: { query: string; growth: string }[];
+  timelinePoints: { date: string; values: number[] }[];
+}> {
+  const client = getClient();
+  const response = await createWithRetry(() =>
+    client.messages.create({
+      model: "claude-sonnet-4-6",
+      max_tokens: 1200,
+      messages: [
+        {
+          role: "user",
+          content: [
+            {
+              type: "image",
+              source: { type: "base64", media_type: "image/jpeg", data: b64 },
+            },
+            {
+              type: "text",
+              text: `Este screenshot muestra Google Trends Chile comparando Blue Express, Chilexpress y Starken (últimos 30 días).
 
-  // Paso 0: visitar la página principal para obtener cookie NID
-  const landingRes = await fetch(
-    "https://trends.google.com/trends/explore?geo=CL&hl=es",
-    {
-      headers: {
-        "User-Agent": UA,
-        "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
-        "Accept-Language": "es-CL,es;q=0.9",
-      },
-      redirect: "follow",
-    }
+Extrae EXACTAMENTE lo que ves en la pantalla. Devuelve SOLO este JSON (sin markdown):
+{
+  "scores": [número_Blue_Express_0_100, número_Chilexpress_0_100, número_Starken_0_100],
+  "trendDir": ["up"|"down"|"stable", "up"|"down"|"stable", "up"|"down"|"stable"],
+  "timelinePoints": [
+    { "date": "semana_1", "values": [val_BX, val_CHX, val_STK] },
+    { "date": "semana_2", "values": [val_BX, val_CHX, val_STK] },
+    { "date": "semana_3", "values": [val_BX, val_CHX, val_STK] },
+    { "date": "semana_4", "values": [val_BX, val_CHX, val_STK] }
+  ],
+  "relatedQueries": [
+    { "query": "búsqueda_relacionada_1", "growth": "+XX%" },
+    { "query": "búsqueda_relacionada_2", "growth": "+XX%" }
+  ]
+}
+
+Instrucciones:
+- scores: promedio de la línea en el gráfico (0=sin datos, 100=máximo interés). Si no puedes leer el valor exacto, estima según la altura relativa de la línea.
+- trendDir: "up" si la línea sube al final, "down" si baja, "stable" si es plana.
+- timelinePoints: 4 puntos aproximados leyendo el gráfico de izquierda a derecha. Usa "semana 1", "semana 2", etc. si no hay fechas visibles.
+- relatedQueries: las búsquedas del panel "Consultas relacionadas" si están visibles. Máximo 6.
+- Si la página muestra un error o CAPTCHA, devuelve scores [0,0,0] y arrays vacíos.`,
+            },
+          ],
+        },
+      ],
+    })
   );
 
-  // Extraer cookies del header Set-Cookie
-  const rawSetCookie = landingRes.headers.get("set-cookie") ?? "";
-  const cookies = rawSetCookie
-    .split(/,(?=[^;]+=)/)
-    .map((c) => c.trim().split(";")[0])
-    .join("; ");
+  const raw = (response.content[0] as Anthropic.TextBlock).text.trim();
+  // Limpiar posible markdown
+  const jsonStr = raw.replace(/^```[a-z]*\n?/i, "").replace(/\n?```$/i, "").trim();
+  const data = JSON.parse(jsonStr);
 
-  const apiHeaders: Record<string, string> = {
-    "User-Agent": UA,
-    "Accept": "application/json, text/plain, */*",
-    "Accept-Language": "es-CL,es;q=0.9",
-    "Referer": "https://trends.google.com/trends/explore",
-    ...(cookies ? { Cookie: cookies } : {}),
+  return {
+    scores: data.scores ?? [0, 0, 0],
+    trendDir: data.trendDir ?? ["stable", "stable", "stable"],
+    relatedQueries: data.relatedQueries ?? [],
+    timelinePoints: data.timelinePoints ?? [],
   };
-
-  // Paso 1: obtener tokens de widgets
-  const exploreReq = {
-    comparisonItem: [
-      { keyword: "Blue Express", geo: "CL", time: "today 1-m" },
-      { keyword: "Chilexpress", geo: "CL", time: "today 1-m" },
-      { keyword: "Starken", geo: "CL", time: "today 1-m" },
-    ],
-    category: 0,
-    property: "",
-  };
-
-  const exploreRes = await fetch(
-    `https://trends.google.com/trends/api/explore?hl=es&tz=-180&req=${encodeURIComponent(
-      JSON.stringify(exploreReq)
-    )}`,
-    { headers: apiHeaders }
-  );
-
-  if (!exploreRes.ok) {
-    throw new Error(`Google Trends explore: HTTP ${exploreRes.status}`);
-  }
-
-  const widgets: any[] = parseGT(await exploreRes.text()).widgets ?? [];
-  console.log("GT widgets found:", widgets.map((w: any) => w.id).join(", "));
-
-  const tsWidget = widgets.find((w: any) => w.id === "TIMESERIES");
-  const rqWidgets = widgets.filter((w: any) => w.id === "RELATED_QUERIES");
-
-  if (!tsWidget) throw new Error("No TIMESERIES widget in explore response");
-
-  // Paso 2: serie de tiempo
-  const timelineRes = await fetch(
-    `https://trends.google.com/trends/api/widgetdata/multiline?hl=es&tz=-180` +
-      `&req=${encodeURIComponent(JSON.stringify(tsWidget.request))}` +
-      `&token=${encodeURIComponent(tsWidget.token)}&geo=CL`,
-    { headers: apiHeaders }
-  );
-
-  const timelineData: any[] =
-    parseGT(await timelineRes.text()).default?.timelineData ?? [];
-
-  // Paso 3: consultas relacionadas (Blue Express = índice 0 de RELATED_QUERIES)
-  let relatedQueries: { query: string; growth: string }[] = [];
-  if (rqWidgets.length > 0) {
-    const rqRes = await fetch(
-      `https://trends.google.com/trends/api/widgetdata/relatedsearches?hl=es&tz=-180` +
-        `&req=${encodeURIComponent(JSON.stringify(rqWidgets[0].request))}` +
-        `&token=${encodeURIComponent(rqWidgets[0].token)}&geo=CL`,
-      { headers: apiHeaders }
-    );
-    const rqJson = parseGT(await rqRes.text());
-    const rankedList: any[] = rqJson.default?.rankedList ?? [];
-    const rising =
-      rankedList[1]?.rankedKeyword ?? rankedList[0]?.rankedKeyword ?? [];
-    relatedQueries = rising.slice(0, 6).map((k: any) => ({
-      query: k.query ?? "",
-      growth: k.formattedValue ?? (k.value != null ? `+${k.value}%` : "↑"),
-    }));
-  }
-
-  // Calcular scores y tendencia
-  let scores = [0, 0, 0];
-  let trendDir: ("up" | "down" | "stable")[] = ["stable", "stable", "stable"];
-  let timelinePoints: { date: string; values: number[] }[] = [];
-
-  if (timelineData.length) {
-    timelinePoints = timelineData.map((t: any) => ({
-      date: t.formattedAxisTime ?? "",
-      values: (t.value as number[]) ?? [0, 0, 0],
-    }));
-    scores = BRANDS.map((_, i) =>
-      Math.round(
-        timelineData.reduce((s: number, t: any) => s + (t.value?.[i] ?? 0), 0) /
-          timelineData.length
-      )
-    );
-    if (timelineData.length >= 6) {
-      const mid = Math.floor(timelineData.length / 2);
-      const first = timelineData.slice(0, mid);
-      const second = timelineData.slice(mid);
-      trendDir = BRANDS.map((_, i) => {
-        const a1 = first.reduce((s: number, t: any) => s + (t.value?.[i] ?? 0), 0) / first.length;
-        const a2 = second.reduce((s: number, t: any) => s + (t.value?.[i] ?? 0), 0) / second.length;
-        if (a2 > a1 * 1.08) return "up";
-        if (a2 < a1 * 0.92) return "down";
-        return "stable";
-      });
-    }
-  }
-
-  return { scores, trendDir, relatedQueries, timelinePoints };
 }
 
 async function generateInsight(
@@ -160,13 +131,18 @@ async function generateInsight(
     client.messages.create({
       model: "claude-sonnet-4-6",
       max_tokens: 150,
-      messages: [{
-        role: "user",
-        content: `Google Trends Chile 30 días:
+      messages: [
+        {
+          role: "user",
+          content: `Google Trends Chile 30 días:
 ${brands.map((b) => `${b.name}: ${b.score}/100, tendencia ${b.trend}`).join("\n")}
-Consultas en ascenso Blue Express: ${relatedQueries.map((q) => `"${q.query}" ${q.growth}`).join(", ") || "sin datos"}
+Consultas en ascenso Blue Express: ${
+            relatedQueries.map((q) => `"${q.query}" ${q.growth}`).join(", ") ||
+            "sin datos"
+          }
 Una frase de insight para el equipo de marketing de Blue Express (máx 120 chars). Sin comillas.`,
-      }],
+        },
+      ],
     })
   );
   return (res.content[0] as Anthropic.TextBlock).text.trim();
@@ -174,8 +150,9 @@ Una frase de insight para el equipo de marketing de Blue Express (máx 120 chars
 
 export async function POST() {
   try {
+    const b64 = await screenshotTrends();
     const { scores, trendDir, relatedQueries, timelinePoints } =
-      await fetchGoogleTrends();
+      await extractWithVision(b64);
 
     const brands = BRANDS.map((b, i) => ({
       ...b,
@@ -183,7 +160,9 @@ export async function POST() {
       trend: trendDir[i] ?? "stable",
     }));
 
-    const insight = await generateInsight(brands, relatedQueries).catch(() => "");
+    const insight = await generateInsight(brands, relatedQueries).catch(
+      () => ""
+    );
 
     return NextResponse.json({
       brands,

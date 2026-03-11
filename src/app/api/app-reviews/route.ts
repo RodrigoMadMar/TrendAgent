@@ -24,8 +24,8 @@ async function screenshotApp(appId: string): Promise<string> {
     await page.setViewportSize({ width: 1280, height: 900 });
     await page.setExtraHTTPHeaders({ "Accept-Language": "es-CL,es;q=0.9" });
 
-    // showAllReviews=true abre directamente el panel de reseñas
-    const url = `https://play.google.com/store/apps/details?id=${appId}&showAllReviews=true&hl=es_CL&gl=CL`;
+    // Página principal del app — muestra el rating global prominentemente
+    const url = `https://play.google.com/store/apps/details?id=${appId}&hl=es_CL&gl=CL`;
 
     try {
       await page.goto(url, { waitUntil: "load", timeout: 30000 });
@@ -35,9 +35,9 @@ async function screenshotApp(appId: string): Promise<string> {
 
     await page.waitForTimeout(4000);
 
-    // Scroll para cargar más reseñas
-    await page.evaluate(() => window.scrollBy(0, 800));
-    await page.waitForTimeout(1500);
+    // Scroll para ver rating + reseñas visibles en la página principal
+    await page.evaluate(() => window.scrollBy(0, 600));
+    await page.waitForTimeout(2000);
 
     const buffer = await page.screenshot({ type: "jpeg", quality: 80 });
     return buffer.toString("base64");
@@ -65,27 +65,28 @@ async function extractWithVision(b64: string, appName: string): Promise<any> {
           },
           {
             type: "text",
-            text: `Este screenshot muestra la página de reseñas de ${appName} en Google Play Store Chile.
+            text: `Este screenshot muestra la página de ${appName} en Google Play Store Chile.
 
-Extrae EXACTAMENTE lo que ves (no inventes nada). Devuelve SOLO este JSON (sin markdown):
+Extrae EXACTAMENTE lo que ves. Devuelve SOLO JSON válido sin markdown:
 {
-  "rating": número_decimal_visible (ej: 2.8),
-  "totalReviews": "texto visible de cantidad (ej: 50K+)",
-  "recentSentiment": "positivo"|"mixto"|"negativo",
-  "topIssues": ["problema visible en reseñas 1","problema 2","problema 3"],
-  "topPraises": ["elogio visible 1","elogio 2"],
+  "rating": 3.5,
+  "totalReviews": "50K+",
+  "recentSentiment": "mixto",
+  "topIssues": ["descripción issue 1", "issue 2"],
+  "topPraises": ["elogio 1", "elogio 2"],
   "recentReviews": [
-    {
-      "author": "nombre del autor si visible",
-      "text": "texto COMPLETO de la reseña tal como aparece en pantalla",
-      "rating": número_1_a_5_de_las_estrellas,
-      "date": "fecha tal como aparece",
-      "sentiment": "positivo"|"negativo"|"neutro"
-    }
+    { "author": "nombre", "text": "texto de reseña", "rating": 4, "date": "fecha", "sentiment": "positivo" }
   ]
 }
 
-Incluye todas las reseñas visibles (mínimo 3 si hay). Si un campo no es visible, usa null.`,
+Reglas:
+- "rating": el número decimal grande visible en la página (ej: 3.5, 2.8, 4.2). Si hay un número grande con estrella, ese es el rating global. Devuelve el número, no null.
+- "totalReviews": texto del total de reseñas visible (ej: "12.345", "50K+").
+- "recentSentiment": analiza los textos de reseñas visibles y clasifica como "positivo", "mixto" o "negativo".
+- "topIssues": problemas mencionados en reseñas negativas visibles.
+- "topPraises": elogios de reseñas positivas visibles.
+- "recentReviews": incluye todas las reseñas visibles con su texto completo.
+- Si un campo no es visible en pantalla usa null.`,
           },
         ],
       }],
