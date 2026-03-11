@@ -57,6 +57,7 @@ interface BrandData { name: string; score: number; trend: "up" | "down" | "stabl
 interface BrandPulseResult {
   brands: BrandData[];
   relatedQueries: { query: string; growth: string }[];
+  timelinePoints: { date: string; values: number[] }[];
   insight: string;
   source: string;
   scannedAt: string;
@@ -612,13 +613,44 @@ function TrendPanel({
 
 const BRAND_PULSE_ACCENT = "#a78bfa";
 
+/** Mini gráfico SVG de serie de tiempo para las 3 marcas */
+function TrendlineChart({ points, brands }: {
+  points: { date: string; values: number[] }[];
+  brands: { color: string }[];
+}) {
+  if (points.length < 2) return null;
+  const W = 100;
+  const H = 50;
+  const PAD = 3;
+  const usable = W - PAD * 2;
+  const usableH = H - PAD * 2;
+  const getPath = (idx: number) =>
+    points.map((p, i) => {
+      const x = PAD + (i / (points.length - 1)) * usable;
+      const y = PAD + usableH - ((p.values[idx] ?? 0) / 100) * usableH;
+      return `${i === 0 ? "M" : "L"}${x.toFixed(1)},${y.toFixed(1)}`;
+    }).join(" ");
+  return (
+    <svg viewBox={`0 0 ${W} ${H}`} style={{ width: "100%", height: 60, display: "block" }} preserveAspectRatio="none">
+      {/* grid lines at 25/50/75 */}
+      {[25, 50, 75].map(v => {
+        const y = (PAD + usableH - (v / 100) * usableH).toFixed(1);
+        return <line key={v} x1={PAD} y1={y} x2={W - PAD} y2={y} stroke="rgba(255,255,255,0.05)" strokeWidth="0.5" />;
+      })}
+      {brands.map((b, i) => (
+        <path key={i} d={getPath(i)} fill="none" stroke={b.color} strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
+      ))}
+    </svg>
+  );
+}
+
 function BrandPulsePanel({ phase, data, onScan }: {
   phase: "idle" | "fetching" | "done" | "error";
   data: BrandPulseResult | null;
   onScan: () => void;
 }) {
   const isLoading = phase === "fetching";
-  const btnLabel = phase === "idle" ? "Escanear" : isLoading ? "📡 Analizando..." : phase === "error" ? "🔄 Reintentar" : "🔄 Actualizar";
+  const btnLabel = phase === "idle" ? "Escanear" : isLoading ? "📡 Consultando..." : phase === "error" ? "🔄 Reintentar" : "🔄 Actualizar";
   const TREND_ICON: Record<string, string> = { up: "▲", down: "▼", stable: "●" };
   const TREND_COLOR: Record<string, string> = { up: T.green, down: T.red, stable: T.txt3 };
 
@@ -630,7 +662,7 @@ function BrandPulsePanel({ phase, data, onScan }: {
           <div>
             <div style={{ fontSize: 13, fontWeight: 800, color: T.txt1 }}>📊 Pulso de Marca</div>
             <div style={{ fontSize: 9, color: T.txt3, fontFamily: T.mono }}>
-              {data ? data.source : "trends.google.com"} · Últimos 30 días
+              {data?.source ?? "trends.google.com"} · Interés relativo búsqueda · 30 días · Chile
             </div>
           </div>
         </div>
@@ -643,51 +675,84 @@ function BrandPulsePanel({ phase, data, onScan }: {
         }}>{btnLabel}</button>
       </>
     }>
-      <div style={{ padding: 12 }}>
+      <div style={{ padding: "10px 12px" }}>
         {phase === "idle" && (
           <div style={{ textAlign: "center", padding: "32px 20px" }}>
             <div style={{ fontSize: 30, marginBottom: 8, opacity: 0.3 }}>📊</div>
             <div style={{ fontSize: 12, fontWeight: 700, color: T.txt3 }}>Pulso de Marca</div>
-            <div style={{ fontSize: 10, color: T.txt3, marginTop: 3 }}>Blue Express vs Chilexpress vs Starken</div>
+            <div style={{ fontSize: 10, color: T.txt3, marginTop: 3 }}>Blue Express vs Chilexpress vs Starken · Google Trends Chile</div>
           </div>
         )}
         {isLoading && (
           <div style={{ textAlign: "center", padding: "32px 20px" }}>
             <div style={{ fontSize: 28, marginBottom: 8, animation: "pulse 1.5s ease-in-out infinite" }}>📊</div>
             <div style={{ fontSize: 11, fontWeight: 700, color: BRAND_PULSE_ACCENT }}>Consultando Google Trends...</div>
+            <div style={{ fontSize: 9, color: T.txt3, marginTop: 4 }}>Puede tardar ~15s · Playwright navega Google Trends</div>
           </div>
         )}
         {phase === "done" && data && (
           <>
-            {/* Barras de marcas */}
-            <div style={{ display: "flex", flexDirection: "column", gap: 10, marginBottom: 12 }}>
+            {/* Leyenda de escala */}
+            <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 6 }}>
+              <Label>Interés relativo 0–100 (100 = pico del período)</Label>
+              {data.timelinePoints.length > 0 && (
+                <span style={{ fontSize: 8, color: T.txt3, fontFamily: T.mono }}>
+                  {data.timelinePoints[0]?.date} → {data.timelinePoints[data.timelinePoints.length - 1]?.date}
+                </span>
+              )}
+            </div>
+
+            {/* Gráfico de evolución 30 días */}
+            {data.timelinePoints.length >= 2 && (
+              <div style={{ marginBottom: 10, background: "rgba(255,255,255,0.02)", borderRadius: 6, padding: "6px 6px 2px", border: `1px solid ${T.border}` }}>
+                <TrendlineChart points={data.timelinePoints} brands={data.brands} />
+                {/* Leyenda del gráfico */}
+                <div style={{ display: "flex", gap: 10, justifyContent: "center", paddingBottom: 4 }}>
+                  {data.brands.map(b => (
+                    <span key={b.name} style={{ display: "flex", alignItems: "center", gap: 3, fontSize: 8, color: b.color, fontFamily: T.mono }}>
+                      <span style={{ display: "inline-block", width: 16, height: 2, background: b.color, borderRadius: 1 }} />
+                      {b.name === "Blue Express" ? "Blue Express" : b.name}
+                    </span>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* Barras de score promedio */}
+            <div style={{ display: "flex", flexDirection: "column", gap: 8, marginBottom: 12 }}>
               {data.brands.map((brand) => (
                 <div key={brand.name}>
-                  <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 4 }}>
-                    <span style={{ fontSize: 11, fontWeight: 700, color: brand.color, width: 100, flexShrink: 0 }}>{brand.name}</span>
-                    <div style={{ flex: 1, height: 8, background: "rgba(255,255,255,0.05)", borderRadius: 4, overflow: "hidden" }}>
-                      <div style={{ height: "100%", width: `${brand.score}%`, background: brand.color, borderRadius: 4, transition: "width 0.8s ease" }} />
+                  <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 3 }}>
+                    <span style={{ fontSize: 10, fontWeight: 700, color: brand.color, width: 94, flexShrink: 0, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{brand.name}</span>
+                    <div style={{ flex: 1, height: 7, background: "rgba(255,255,255,0.05)", borderRadius: 3, overflow: "hidden" }}>
+                      <div style={{ height: "100%", width: `${brand.score}%`, background: brand.color, borderRadius: 3, transition: "width 0.8s ease" }} />
                     </div>
-                    <span style={{ fontSize: 11, fontWeight: 800, color: brand.color, fontFamily: T.mono, width: 26, textAlign: "right" }}>{brand.score}</span>
-                    <span style={{ fontSize: 10, color: TREND_COLOR[brand.trend] || T.txt3, fontWeight: 700, width: 14 }}>
-                      {TREND_ICON[brand.trend] || "●"}
+                    <span style={{ fontSize: 11, fontWeight: 800, color: brand.color, fontFamily: T.mono, width: 24, textAlign: "right", flexShrink: 0 }}>{brand.score}</span>
+                    <span style={{ fontSize: 9, color: TREND_COLOR[brand.trend] ?? T.txt3, fontWeight: 700, width: 12, flexShrink: 0 }}>
+                      {TREND_ICON[brand.trend] ?? "●"}
                     </span>
                   </div>
-                  {/* Related queries solo para Blue Express */}
-                  {brand.name === "Blue Express" && data.relatedQueries.length > 0 && (
-                    <div style={{ display: "flex", flexWrap: "wrap", gap: 4, marginLeft: 108, marginBottom: 4 }}>
-                      {data.relatedQueries.map((q, i) => (
-                        <span key={i} style={{
-                          fontSize: 8, color: BRAND_PULSE_ACCENT, background: `${BRAND_PULSE_ACCENT}12`,
-                          padding: "2px 7px", borderRadius: 4, border: `1px solid ${BRAND_PULSE_ACCENT}25`,
-                          fontFamily: T.mono, whiteSpace: "nowrap",
-                        }}>{q.query} <span style={{ color: T.green }}>{q.growth}</span></span>
-                      ))}
-                    </div>
-                  )}
                 </div>
               ))}
             </div>
+
+            {/* Consultas relacionadas en ascenso para Blue Express */}
+            {data.relatedQueries.length > 0 && (
+              <div style={{ marginBottom: 10 }}>
+                <div style={{ marginBottom: 5 }}>
+                  <Label>🔍 Consultas relacionadas Blue Express · En ascenso</Label>
+                </div>
+                <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+                  {data.relatedQueries.map((q, i) => (
+                    <div key={i} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 6 }}>
+                      <span style={{ fontSize: 9, color: T.txt2, flex: 1 }}>{i + 1}. {q.query}</span>
+                      <span style={{ fontSize: 9, fontWeight: 700, color: T.green, fontFamily: T.mono, flexShrink: 0 }}>{q.growth}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
             {/* Insight */}
             {data.insight && (
               <div style={{ background: `${BRAND_PULSE_ACCENT}08`, border: `1px solid ${BRAND_PULSE_ACCENT}18`, borderRadius: 7, padding: "8px 10px" }}>
@@ -1074,21 +1139,9 @@ export default function Dashboard() {
 
       {/* ── TENDENCIAS TAB ── */}
       {activeTab === "tendencias" && (
-        <div style={{ padding: "16px 16px 24px" }}>
-          {/* Master scan button */}
-          <div style={{ display: "flex", justifyContent: "flex-end", marginBottom: 12 }}>
-            <button
-              onClick={scanAll}
-              disabled={twitterPhase === "fetching" || twitterPhase === "scoring" || brandPhase === "fetching" || reviewsPhase === "fetching"}
-              style={{
-                padding: "7px 18px", borderRadius: 8, fontSize: 11, fontWeight: 700,
-                background: `${T.blue}18`, border: `1px solid ${T.blue}40`,
-                color: T.blue, cursor: "pointer", display: "flex", alignItems: "center", gap: 6,
-              }}
-            >
-              ⚡ Escanear todo
-            </button>
-          </div>
+        <div style={{ padding: "16px 16px 24px", display: "flex", flexDirection: "column", gap: 14 }}>
+
+          {/* Fila 1: Trends en tiempo real */}
           <div style={{
             display: "grid",
             gridTemplateColumns: "repeat(auto-fit, minmax(340px, 1fr))",
@@ -1115,6 +1168,24 @@ export default function Dashboard() {
               onVote={voteGoogle}
               onCreate={(c, tr) => setModal({ campaign: c, trend: tr })}
             />
+          </div>
+
+          {/* Separador de nivel */}
+          <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+            <div style={{ flex: 1, height: 1, background: T.border }} />
+            <span style={{ fontSize: 9, color: T.txt3, fontFamily: T.mono, fontWeight: 700, letterSpacing: 1.5, whiteSpace: "nowrap" }}>
+              INTELIGENCIA DE MARCA
+            </span>
+            <div style={{ flex: 1, height: 1, background: T.border }} />
+          </div>
+
+          {/* Fila 2: Brand Intelligence */}
+          <div style={{
+            display: "grid",
+            gridTemplateColumns: "repeat(auto-fit, minmax(340px, 1fr))",
+            gap: 14,
+            alignItems: "start",
+          }}>
             <BrandPulsePanel
               phase={brandPhase}
               data={brandPulse}
@@ -1127,6 +1198,7 @@ export default function Dashboard() {
               onOpportunity={() => setActiveTab("tendencias")}
             />
           </div>
+
         </div>
       )}
 
