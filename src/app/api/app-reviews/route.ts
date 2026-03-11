@@ -77,7 +77,31 @@ async function loadAndExtract(
     } catch {
       // continuar con lo que cargó
     }
-    await page.waitForTimeout(5000);
+    await page.waitForTimeout(4000);
+
+    // Intentar ordenar por "Más recientes"
+    try {
+      // Buscar el botón de ordenar (texto puede ser "Más relevantes" o "Most relevant")
+      for (const sortText of ["Más relevantes", "Most relevant", "Más útiles"]) {
+        const btn = page.locator(`button:has-text("${sortText}")`).first();
+        if (await btn.isVisible({ timeout: 2000 }).catch(() => false)) {
+          await btn.click();
+          await page.waitForTimeout(1000);
+          // Seleccionar "Más recientes"
+          for (const recentText of ["Más recientes", "Newest", "Recientes"]) {
+            const opt = page.locator(`[role="option"]:has-text("${recentText}"), li:has-text("${recentText}")`).first();
+            if (await opt.isVisible({ timeout: 1500 }).catch(() => false)) {
+              await opt.click();
+              await page.waitForTimeout(2500);
+              break;
+            }
+          }
+          break;
+        }
+      }
+    } catch {
+      // ignorar — continúa con el orden por defecto
+    }
 
     // Tomar screenshot del panel de reseñas
     const b64 = (
@@ -122,7 +146,7 @@ async function extractReviewsWithVision(
             },
             {
               type: "text",
-              text: `Este screenshot muestra el panel de reseñas de ${appName} en Google Play Store.
+              text: `Este screenshot muestra el panel de reseñas de ${appName} en Google Play Store, ordenado por más recientes.
 
 Extrae el contenido textual de las reseñas visibles. Devuelve SOLO JSON válido sin markdown:
 {
@@ -144,7 +168,7 @@ Reglas:
 - NO incluyas el rating global de la app (eso ya lo tenemos de otra fuente).
 - "recentSentiment": basado en el tono general de las reseñas visibles — "positivo", "mixto" o "negativo".
 - "recentReviews[].rating": estrellas de ESA reseña individual (1-5). Si no ves estrellas individuales usa null.
-- Incluye TODAS las reseñas visibles en pantalla, hasta 8.
+- Incluye MÍNIMO 3 reseñas recientes y hasta 8 en total. Prioriza las que tienen fecha más reciente.
 - Si la pantalla no muestra reseñas, devuelve arrays vacíos y recentSentiment "mixto".`,
             },
           ],

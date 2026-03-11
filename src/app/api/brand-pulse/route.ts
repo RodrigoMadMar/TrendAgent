@@ -27,6 +27,12 @@ async function fetchBrandPresence(): Promise<{
 }> {
   const client = getClient();
 
+  const today = new Date().toLocaleDateString("es-CL", {
+    year: "numeric",
+    month: "long",
+    day: "numeric",
+  });
+
   const response = await createWithRetry(() =>
     client.messages.create(
       {
@@ -42,18 +48,19 @@ async function fetchBrandPresence(): Promise<{
         messages: [
           {
             role: "user",
-            content: `Busca en Google noticias y menciones de las últimas semanas para estas marcas de courier en Chile: Blue Express, Chilexpress y Starken.
+            content: `Hoy es ${today}. Busca en Google noticias y menciones de los ÚLTIMOS 7 DÍAS para estas marcas de courier en Chile: Blue Express, Chilexpress y Starken.
 
-Haz al menos 2 búsquedas:
-1. "Blue Express Chile courier 2025"
-2. "Chilexpress Starken Chile envíos 2025"
+Haz al menos 3 búsquedas con fechas recientes:
+1. "Blue Express Chile ${today}" — noticias y menciones de hoy
+2. "Blue Express Chile envíos courier marzo 2025 site:biobiochile.cl OR site:df.cl OR site:latercera.com OR site:emol.com"
+3. "Chilexpress Starken Chile envíos noticias ${today}"
 
 Luego devuelve SOLO este JSON (sin markdown):
 {
   "scores": [score_Blue_Express_0_100, score_Chilexpress_0_100, score_Starken_0_100],
   "trendDir": ["up"|"down"|"stable", "up"|"down"|"stable", "up"|"down"|"stable"],
   "relatedQueries": [
-    { "query": "tema de búsqueda relacionado con Blue Express", "growth": "tendencia basada en noticias recientes" }
+    { "query": "consulta exacta en auge ESTA SEMANA relacionada con Blue Express o courier Chile", "growth": "descripción breve del estado: Breakout / Creciente / Al alza / Estable / etc." }
   ],
   "timelinePoints": [
     { "date": "semana 1", "values": [val_BX, val_CHX, val_STK] },
@@ -77,7 +84,7 @@ Para trendDir:
 - "stable" si no hay cambios notables
 
 Para timelinePoints: estima valores aproximados para las últimas 4 semanas basado en actividad de noticias.
-Para relatedQueries: lista los temas/búsquedas más relevantes que encontraste, hasta 6.`,
+Para relatedQueries: lista EXACTAMENTE los temas/búsquedas encontrados en los últimos 7 días, hasta 6. Deben ser temas ACTUALES de esta semana, no históricos. Incluye el contexto real de la noticia en "growth".`,
           },
         ],
       },
