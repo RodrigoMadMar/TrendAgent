@@ -5,15 +5,14 @@ import Anthropic from "@anthropic-ai/sdk";
 
 export const maxDuration = 60;
 
-type Sentiment = "positivo" | "mixto" | "negativo";
-type Review = { text: string; rating: number; date: string; sentiment: Sentiment };
+type Review = { text: string; rating: number; date: string; sentiment: "positivo" | "mixto" | "negativo" };
 type AppData = {
   name: string;
   appId: string;
   url: string;
   rating: number;
   totalReviews: string;
-  recentSentiment: Sentiment;
+  recentSentiment: "positivo" | "mixto" | "negativo";
   topIssues: string[];
   topPraises: string[];
   recentReviews: Review[];
@@ -40,7 +39,7 @@ const PRAISE_KEYWORDS: Record<string, string[]> = {
 
 const normalize = (t: string) => t.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
 
-function inferSentimentFromRating(rating: number): Sentiment {
+function inferSentimentFromRating(rating: number): "positivo" | "mixto" | "negativo" {
   if (rating >= 4) return "positivo";
   if (rating <= 2) return "negativo";
   return "mixto";
@@ -241,7 +240,7 @@ export async function POST() {
       name: app.name ?? "App",
       rating: Number(app.rating) || 0,
       totalReviews: app.totalReviews ?? "N/A",
-      recentSentiment: (app.recentSentiment ?? "mixto") as Sentiment,
+      recentSentiment: (app.recentSentiment ?? "mixto") as "positivo" | "mixto" | "negativo",
       topIssues: Array.isArray(app.topIssues) ? app.topIssues.slice(0, 4) : [],
       topPraises: Array.isArray(app.topPraises) ? app.topPraises.slice(0, 3) : [],
       recentReviews: Array.isArray(app.recentReviews)
@@ -249,7 +248,7 @@ export async function POST() {
             text: String(r.text ?? ""),
             rating: Number(r.rating) || 3,
             date: String(r.date ?? ""),
-            sentiment: (r.sentiment ?? inferSentimentFromRating(Number(r.rating) || 3)) as Sentiment,
+            sentiment: (r.sentiment ?? inferSentimentFromRating(Number(r.rating) || 3)) as "positivo" | "mixto" | "negativo",
           }))
         : [],
     }));
