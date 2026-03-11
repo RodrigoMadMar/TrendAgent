@@ -27,18 +27,19 @@ async function scrapeWithPlaywright() {
 
   try {
     // Usamos arrays + Promise para evitar race-conditions en async
-    const multilineBodies: string[] = [];
-    const relatedBodies: string[] = [];
+    const multilineBodies: { body: string; req: string }[] = [];
+    const relatedBodies: { body: string; req: string }[] = [];
     const capturePromises: Promise<void>[] = [];
 
     page.on("response", (response) => {
       const rUrl = response.url();
       if (!rUrl.includes("trends.google.com/trends/api/widgetdata")) return;
+      const reqParam = new URL(rUrl).searchParams.get("req") ?? "";
 
       const p = response.text().then((text) => {
         if (text.length < 50) return;
-        if (rUrl.includes("/multiline")) multilineBodies.push(text);
-        if (rUrl.includes("/relatedsearches")) relatedBodies.push(text);
+        if (rUrl.includes("/multiline")) multilineBodies.push({ body: text, req: reqParam });
+        if (rUrl.includes("/relatedsearches")) relatedBodies.push({ body: text, req: reqParam });
       }).catch(() => {});
       capturePromises.push(p);
     });
@@ -57,8 +58,13 @@ async function scrapeWithPlaywright() {
     let trendDir: ("up" | "down" | "stable")[] = ["stable", "stable", "stable"];
     let timelinePoints: { date: string; values: number[] }[] = [];
 
-    for (const body of multilineBodies) {
+    const targetMultiline = multilineBodies.find(({ req }) =>
+      req.includes("Blue Express") && req.includes("Chilexpress") && req.includes("Starken")
+    ) ?? multilineBodies[0];
+
+    for (const item of targetMultiline ? [targetMultiline] : []) {
       try {
+        const body = item.body;
         const start = body.indexOf("{");
         if (start === -1) continue;
         const data = JSON.parse(body.slice(start));
@@ -101,8 +107,11 @@ async function scrapeWithPlaywright() {
     // (primer término en q=Blue%20Express,Chilexpress,Starken)
     let relatedQueries: { query: string; growth: string }[] = [];
 
-    for (const body of relatedBodies) {
+    const targetRelated = relatedBodies.find(({ req }) => req.includes("Blue Express")) ?? relatedBodies[0];
+
+    for (const item of targetRelated ? [targetRelated] : []) {
       try {
+        const body = item.body;
         const start = body.indexOf("{");
         if (start === -1) continue;
         const data = JSON.parse(body.slice(start));
